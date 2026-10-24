@@ -19,8 +19,7 @@ export interface DashboardPanelProps {
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
 function download(name: string, rows: unknown[][]) {
-  const blob = new Blob(['﻿' + rows.map((r) => r.map(csvCell).join(',')).join('
-')], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob([String.fromCharCode(0xfeff) + rows.map((r) => r.map(csvCell).join(',')).join(String.fromCharCode(10))], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
