@@ -36,7 +36,7 @@ done
 $AWS s3api put-bucket-cors --bucket "$PHOTO_BUCKET" --cors-configuration \
   '{"CORSRules":[{"AllowedMethods":["PUT"],"AllowedOrigins":["*"],"AllowedHeaders":["Content-Type"],"MaxAgeSeconds":300}]}'
 $AWS s3 cp data/segments.json "s3://$SNAP_BUCKET/segments.json" --only-show-errors
-$AWS s3 sync data/snapshots "s3://$SNAP_BUCKET/snapshots" --only-show-errors
+$AWS s3 sync data/snapshots "s3://$SNAP_BUCKET/snapshots" --only-show-errors --delete
 echo "snapshots subidos a s3://$SNAP_BUCKET"
 
 # ---------- DynamoDB ----------
