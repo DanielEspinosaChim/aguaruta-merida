@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+CLAUDE.local.md
+.trash/
+.superpowers/
+node_modules/
+
+# AguaRuta
+dist/
+data/photos/
+*.log

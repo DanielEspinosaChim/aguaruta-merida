@@ -1,0 +1,72 @@
+# CI para proyectos Node/TypeScript. Marca este workflow como "required status check" en
+# Settings → Branches → main. Ajusta los scripts si tu package.json usa otros nombres.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calidad:
+    name: Lint, tipos y tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint --if-present
+      - name: Tipos
+        run: npm run typecheck --if-present
+      - name: Tests
+        run: npm test --if-present
+      - name: Cada criterio de aceptación tiene su test (trazabilidad spec → test)
+        run: |
+          python3 scripts/trazabilidad.py --check --escribir
+          git diff --exit-code docs/trazabilidad.md || { echo "docs/trazabilidad.md está desactualizado: corre python3 scripts/trazabilidad.py --escribir y commitea"; exit 1; }
+      - name: Dependencias con vulnerabilidades conocidas
+        run: npm audit --audit-level=high --omit=dev
+
+  secretos:
+    name: Secretos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sast:
+    name: Código vulnerable (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v6
+      - run: semgrep scan --config p/typescript --config p/javascript --config p/secrets --config p/owasp-top-ten --error
+
+  dependencias:
+    name: Dependencias (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true

@@ -1,0 +1,516 @@
+openapi: 3.0.3
+info:
+  title: AguaRuta Mérida API (lite)
+  version: 0.1.0-lite
+  description: |
+    - Coordenadas GeoJSON: siempre [longitud, latitud].
+    - Riesgo estimado, nunca garantía de que una calle sea transitable.
+    - Sin autenticación en el MVP.
+servers:
+  - url: http://127.0.0.1:4010/v1
+    description: Mock server local (Prism)
+  - url: https://api.example.com/v1
+    description: API real (marcador de posición)
+tags:
+  - name: Risk
+  - name: Reports
+  - name: Routes
+security: []
+paths:
+  /risk/segments:
+    get:
+      operationId: listRiskSegments
+      tags: [Risk]
+      summary: Riesgo de inundación por tramo dentro de un bbox
+      description: |
+        Con `asOf` usa el snapshot más cercano anterior a esa fecha (replay de la demo).
+        Sin `asOf` usa el último. Incluye el ajuste por reportes de la última hora.
+      parameters:
+        - name: bbox
+          in: query
+          required: true
+          description: "minLng,minLat,maxLng,maxLat"
+          schema:
+            type: string
+            pattern: '^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$'
+          example: '-89.64,20.95,-89.60,20.99'
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          example: '2026-05-29T20:00:00Z'
+        - name: minLevel
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/RiskLevel'
+      responses:
+        '200':
+          description: FeatureCollection de tramos con riesgo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SegmentRiskCollection'
+              example:
+                type: FeatureCollection
+                computedAt: '2026-05-29T20:00:00Z'
+                disclaimer: Riesgo estimado, no garantía. Evita las calles marcadas en riesgo alto.
+                features:
+                  - type: Feature
+                    geometry:
+                      type: LineString
+                      coordinates: [[-89.6237, 20.9671], [-89.6221, 20.9674]]
+                    properties:
+                      segmentId: seg_8f3a1c
+                      name: Calle 60
+                      level: high
+                      score: 0.82
+                      rainfall1hMm: 38.5
+                      rainfall3hMm: 71.2
+                      reportCount60m: 2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /reports:
+    post:
+      operationId: createReport
+      tags: [Reports]
+      summary: Crea un reporte ciudadano de calle inundada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReportRequest'
+            example:
+              location:
+                type: Point
+                coordinates: [-89.6237, 20.9668]
+              waterLevel: knee
+              notes: Agua hasta la rodilla frente al mercado
+              photoKey: reports-photos/01JXYZ/9c1e2f.jpg
+      responses:
+        '201':
+          description: Reporte creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodReport'
+              example:
+                reportId: 01JXYZ8M2K4Q7N3B5T6V9W0AXD
+                location:
+                  type: Point
+                  coordinates: [-89.6237, 20.9668]
+                segmentId: seg_8f3a1c
+                waterLevel: knee
+                notes: Agua hasta la rodilla frente al mercado
+                photoUrl: https://files.example.com/reports-photos/01JXYZ/9c1e2f.jpg
+                createdAt: '2026-05-29T18:22:10Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listReports
+      tags: [Reports]
+      summary: Reportes recientes dentro de un bbox
+      parameters:
+        - name: bbox
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$'
+          example: '-89.64,20.95,-89.60,20.99'
+        - name: since
+          in: query
+          required: false
+          description: Por defecto, última hora
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Reportes que cumplen el filtro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodReportList'
+              example:
+                items:
+                  - reportId: 01JXYZ8M2K4Q7N3B5T6V9W0AXD
+                    location:
+                      type: Point
+                      coordinates: [-89.6237, 20.9668]
+                    segmentId: seg_8f3a1c
+                    waterLevel: knee
+                    notes: Agua hasta la rodilla frente al mercado
+                    photoUrl: https://files.example.com/reports-photos/01JXYZ/9c1e2f.jpg
+                    createdAt: '2026-05-29T18:22:10Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /reports/photo-upload-url:
+    post:
+      operationId: createPhotoUploadUrl
+      tags: [Reports]
+      summary: URL prefirmada de S3 para subir la foto de un reporte
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhotoUploadRequest'
+            example:
+              contentType: image/jpeg
+              sizeBytes: 1843200
+      responses:
+        '201':
+          description: URL válida por 5 minutos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoUploadResponse'
+              example:
+                uploadUrl: https://aguaruta-photos.s3.amazonaws.com/reports-photos/01JXYZ/9c1e2f.jpg?X-Amz-Signature=abc123
+                photoKey: reports-photos/01JXYZ/9c1e2f.jpg
+                method: PUT
+                expiresInSeconds: 300
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /routes:
+    post:
+      operationId: calculateRoute
+      tags: [Routes]
+      summary: Ruta base y ruta alternativa que evita tramos de riesgo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+            example:
+              origin: [-89.5926, 20.9674]
+              destination: [-89.6905, 21.0166]
+              mode: car
+              avoidLevel: high
+              asOf: '2026-05-29T20:00:00Z'
+      responses:
+        '200':
+          description: Ambas rutas con métricas comparativas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResult'
+              example:
+                computedAt: '2026-05-29T20:00:00Z'
+                baseline:
+                  distanceM: 11800
+                  durationS: 1140
+                  riskySegmentCount: 4
+                  geometry:
+                    type: LineString
+                    coordinates: [[-89.5926, 20.9674], [-89.6237, 20.9671], [-89.6905, 21.0166]]
+                safer:
+                  distanceM: 13250
+                  durationS: 1380
+                  avoidedSegmentIds: [seg_8f3a1c, seg_2b7d90]
+                  residualRiskLevel: medium
+                  geometry:
+                    type: LineString
+                    coordinates: [[-89.5926, 20.9674], [-89.6102, 20.9811], [-89.6905, 21.0166]]
+                disclaimer: Riesgo estimado, no garantía. La ruta puede cruzar zonas no reportadas.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: No existe ruta que evite el riesgo solicitado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ROUTE_NOT_FOUND
+                  message: No se encontró una ruta que evite los tramos de riesgo alto.
+                  requestId: req_8b21f0
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INVALID_REQUEST
+              message: El parámetro bbox no tiene un formato válido.
+              requestId: req_3a9d10
+    InternalError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: Ocurrió un error inesperado. Intenta de nuevo.
+              requestId: req_e2f7a8
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              enum: [INVALID_REQUEST, ROUTE_NOT_FOUND, INTERNAL_ERROR]
+            message:
+              type: string
+            requestId:
+              type: string
+
+    RiskLevel:
+      type: string
+      enum: [low, medium, high]
+
+    WaterLevel:
+      type: string
+      description: "puddle = charco, ankle = tobillo, knee = rodilla, impassable = intransitable"
+      enum: [puddle, ankle, knee, impassable]
+
+    TravelMode:
+      type: string
+      enum: [car, walk]
+
+    Position:
+      type: array
+      description: "[longitud, latitud]"
+      minItems: 2
+      maxItems: 2
+      items:
+        type: number
+
+    Point:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Point]
+        coordinates:
+          $ref: '#/components/schemas/Position'
+
+    LineString:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [LineString]
+        coordinates:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/Position'
+
+    SegmentRiskFeature:
+      type: object
+      required: [type, geometry, properties]
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        geometry:
+          $ref: '#/components/schemas/LineString'
+        properties:
+          type: object
+          required: [segmentId, level, score, rainfall1hMm, rainfall3hMm, reportCount60m]
+          properties:
+            segmentId:
+              type: string
+            name:
+              type: string
+              nullable: true
+            level:
+              $ref: '#/components/schemas/RiskLevel'
+            score:
+              type: number
+              minimum: 0
+              maximum: 1
+            rainfall1hMm:
+              type: number
+            rainfall3hMm:
+              type: number
+            reportCount60m:
+              type: integer
+
+    SegmentRiskCollection:
+      type: object
+      required: [type, computedAt, disclaimer, features]
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        computedAt:
+          type: string
+          format: date-time
+        disclaimer:
+          type: string
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentRiskFeature'
+
+    CreateReportRequest:
+      type: object
+      required: [location, waterLevel]
+      properties:
+        location:
+          $ref: '#/components/schemas/Point'
+        waterLevel:
+          $ref: '#/components/schemas/WaterLevel'
+        notes:
+          type: string
+          maxLength: 280
+        photoKey:
+          type: string
+          nullable: true
+
+    FloodReport:
+      type: object
+      required: [reportId, location, waterLevel, createdAt]
+      properties:
+        reportId:
+          type: string
+        location:
+          $ref: '#/components/schemas/Point'
+        segmentId:
+          type: string
+          nullable: true
+        waterLevel:
+          $ref: '#/components/schemas/WaterLevel'
+        notes:
+          type: string
+          nullable: true
+        photoUrl:
+          type: string
+          format: uri
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    FloodReportList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FloodReport'
+
+    PhotoUploadRequest:
+      type: object
+      required: [contentType, sizeBytes]
+      properties:
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png]
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 5242880
+
+    PhotoUploadResponse:
+      type: object
+      required: [uploadUrl, photoKey, method, expiresInSeconds]
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+        photoKey:
+          type: string
+        method:
+          type: string
+          enum: [PUT]
+        expiresInSeconds:
+          type: integer
+
+    RouteRequest:
+      type: object
+      required: [origin, destination]
+      properties:
+        origin:
+          $ref: '#/components/schemas/Position'
+        destination:
+          $ref: '#/components/schemas/Position'
+        mode:
+          allOf:
+            - $ref: '#/components/schemas/TravelMode'
+          default: car
+        avoidLevel:
+          type: string
+          enum: [medium, high]
+          default: high
+        asOf:
+          type: string
+          format: date-time
+
+    RouteLeg:
+      type: object
+      required: [distanceM, durationS, geometry]
+      properties:
+        distanceM:
+          type: number
+        durationS:
+          type: number
+        geometry:
+          $ref: '#/components/schemas/LineString'
+
+    RouteResult:
+      type: object
+      required: [computedAt, baseline, safer, disclaimer]
+      properties:
+        computedAt:
+          type: string
+          format: date-time
+        baseline:
+          allOf:
+            - $ref: '#/components/schemas/RouteLeg'
+            - type: object
+              required: [riskySegmentCount]
+              properties:
+                riskySegmentCount:
+                  type: integer
+        safer:
+          allOf:
+            - $ref: '#/components/schemas/RouteLeg'
+            - type: object
+              required: [avoidedSegmentIds, residualRiskLevel]
+              properties:
+                avoidedSegmentIds:
+                  type: array
+                  items:
+                    type: string
+                residualRiskLevel:
+                  $ref: '#/components/schemas/RiskLevel'
+        disclaimer:
+          type: string
