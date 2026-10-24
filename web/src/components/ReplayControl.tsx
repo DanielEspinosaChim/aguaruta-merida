@@ -6,12 +6,17 @@ export interface ReplayControlProps {
   playing: boolean;
   onStep: (step: number) => void;
   onTogglePlay: () => void;
+  /** Lluvia 1 h del snapshot actual, para el indicador. */
+  rainMm?: number;
 }
 
-export function ReplayControl({ step, playing, onStep, onTogglePlay }: ReplayControlProps) {
+const HOURS = Array.from({ length: 10 }, (_, i) => i); // 09:00 … 18:00 hora Mérida
+
+/** Línea de tiempo como línea de metro: estaciones por hora y un "tren" que avanza cada 15 min. */
+export function ReplayControl({ step, playing, onStep, onTogglePlay, rainMm = 0 }: ReplayControlProps) {
   useEffect(() => {
     if (!playing) return;
-    const id = setInterval(() => onStep(step >= REPLAY_STEPS ? 0 : step + 1), 1500);
+    const id = setInterval(() => onStep(step >= REPLAY_STEPS ? 0 : step + 1), 900);
     return () => clearInterval(id);
   }, [playing, step, onStep]);
 
@@ -27,16 +32,34 @@ export function ReplayControl({ step, playing, onStep, onTogglePlay }: ReplayCon
   return (
     <section className="replay" aria-label="Replay de la tormenta">
       <button type="button" className="play" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'}>
-        {playing ? '❚❚' : '▶'}
+        <span className={playing ? 'icon-pause' : 'icon-play'} />
       </button>
+
       <div className="clock">
-        <span className="eyebrow">Tormenta · 29 may 2026</span>
-        <strong>{time}</strong>
-        <span className="muted">
-          hora Mérida · <code>{asOf}</code>
+        <span className="kicker">Línea 29·05 — tormenta</span>
+        <strong key={time} className="digits">
+          {time}
+        </strong>
+        <span className="rain-read">
+          <b>{rainMm.toFixed(1)}</b> mm/h · <code>{asOf}</code>
         </span>
       </div>
-      <div className="track" style={{ ['--pct' as string]: `${pct}%` }}>
+
+      <div className="subway" style={{ ['--pct' as string]: `${pct}%` }}>
+        <div className="subway-rail" />
+        <div className="subway-done" />
+        {HOURS.map((hIdx) => {
+          const at = (hIdx * 4) / REPLAY_STEPS;
+          return (
+            <div key={hIdx} className={`station${step >= hIdx * 4 ? ' passed' : ''}`} style={{ left: `${at * 100}%` }}>
+              <i />
+              <span>{String(9 + hIdx).padStart(2, '0')}</span>
+            </div>
+          );
+        })}
+        <div className="train" style={{ left: `${pct}%` }}>
+          <span>{time}</span>
+        </div>
         <input
           type="range"
           min={0}
@@ -46,12 +69,6 @@ export function ReplayControl({ step, playing, onStep, onTogglePlay }: ReplayCon
           aria-label="Hora del replay"
           onChange={(e) => onStep(Number(e.target.value))}
         />
-        <div className="ticks" aria-hidden="true">
-          <span>09:00</span>
-          <span>12:00</span>
-          <span>15:00</span>
-          <span>18:00</span>
-        </div>
       </div>
     </section>
   );
