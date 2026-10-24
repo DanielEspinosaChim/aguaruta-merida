@@ -15,6 +15,7 @@ import { ReportPanel } from './components/ReportPanel';
 import { RoutePanel } from './components/RoutePanel';
 import { LEVEL_COLORS, LEVEL_LABELS, REPLAY_STEPS, stepToAsOf } from './lib/replay';
 import { isValidBbox } from './lib/validation';
+import { useTheme } from './lib/theme';
 
 type PickMode = 'origin' | 'destination' | 'report' | null;
 
@@ -33,6 +34,8 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
   const [disclaimer, setDisclaimer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const [tab, setTab] = useState<'route' | 'report'>('route');
+  const [theme, toggleTheme] = useTheme();
 
   const asOf = stepToAsOf(step);
 
@@ -76,36 +79,72 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
 
   const onStep = useCallback((s: number) => setStep(s), []);
 
+  const counts = { low: 0, medium: 0, high: 0 };
+  for (const f of segments?.features ?? []) counts[f.properties.level]++;
+
   return (
     <div className="app">
-      <header className="header">
-        <h1>AguaRuta Mérida</h1>
-        <Disclaimer text={route?.disclaimer ?? disclaimer} />
+      <MapView
+        segments={segments}
+        reports={reports}
+        route={route}
+        picks={picks}
+        onBboxChange={setBbox}
+        onMapClick={onMapClick}
+        theme={theme}
+      />
+
+      <header className="brand">
+        <div className="brand-mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div>
+          <span className="eyebrow">Mérida · Yucatán</span>
+          <h1>
+            Agua<em>Ruta</em>
+          </h1>
+          <p className="tagline">Riesgo de inundación, calle por calle.</p>
+        </div>
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        >
+          <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+        </button>
       </header>
-      <main className="layout">
-        <MapView
-          segments={segments}
-          reports={reports}
-          route={route}
-          picks={picks}
-          onBboxChange={setBbox}
-          onMapClick={onMapClick}
-        />
-        <aside className="sidebar">
-          {pickMode && <p className="notice">Toca el mapa para elegir la ubicación.</p>}
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <ReplayControl step={step} playing={playing} onStep={onStep} onTogglePlay={() => setPlaying((p) => !p)} />
-          <section className="panel legend" aria-label="Leyenda">
-            {(['low', 'medium', 'high'] as const).map((l) => (
-              <span key={l}>
-                <i style={{ background: LEVEL_COLORS[l] }} /> Riesgo estimado {LEVEL_LABELS[l].toLowerCase()}
-              </span>
-            ))}
-          </section>
+
+      <aside className="sidebar">
+        <section className="stats" aria-label="Leyenda">
+          {(['high', 'medium', 'low'] as const).map((l) => (
+            <div key={l} className={`stat stat-${l}`}>
+              <i style={{ background: LEVEL_COLORS[l] }} />
+              <strong>{counts[l]}</strong>
+              <span>Riesgo estimado {LEVEL_LABELS[l].toLowerCase()}</span>
+            </div>
+          ))}
+        </section>
+
+        {pickMode && <p className="notice">Toca el mapa para elegir la ubicación.</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === 'route'} onClick={() => setTab('route')}>
+            Ruta
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'report'} onClick={() => setTab('report')}>
+            Reportar
+          </button>
+        </div>
+
+        <div hidden={tab !== 'route'}>
           <RoutePanel
             api={api}
             origin={picks.origin}
@@ -116,6 +155,8 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
             onResult={setRoute}
             result={route}
           />
+        </div>
+        <div hidden={tab !== 'report'}>
           <ReportPanel
             api={api}
             location={picks.report}
@@ -126,8 +167,12 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
               setRefresh((n) => n + 1);
             }}
           />
-        </aside>
-      </main>
+        </div>
+
+        <Disclaimer text={route?.disclaimer ?? disclaimer} />
+      </aside>
+
+      <ReplayControl step={step} playing={playing} onStep={onStep} onTogglePlay={() => setPlaying((p) => !p)} />
     </div>
   );
 }
