@@ -4,6 +4,12 @@ Mapa de **riesgo estimado de inundación por calle** en Mérida, Yucatán, con r
 
 > Riesgo estimado, no garantía. AguaRuta nunca afirma que una calle sea transitable.
 
+## Demo en vivo
+
+- **Web (AWS Amplify):** https://main.ddvd3qz48bevd.amplifyapp.com
+- **API (API Gateway + Lambda):** https://v6oco0es27.execute-api.us-east-2.amazonaws.com/v1 — ej. [`/risk/segments`](https://v6oco0es27.execute-api.us-east-2.amazonaws.com/v1/risk/segments?bbox=-89.64,20.95,-89.60,20.99&asOf=2026-05-29T20:30:00Z)
+- Región: `us-east-2` (Ohio).
+
 ## El problema
 
 En Mérida, el suelo kárstico, la falta de drenaje pluvial y los puntos bajos hacen que algunas calles se inunden en minutos durante tormentas fuertes. Los automovilistas y peatones no saben qué calles evitar hasta que ya están dentro del agua, con riesgo para su vida y su vehículo. La información existe dispersa (lluvia, elevación, historial, testimonios en redes) pero no está unida calle por calle ni sirve para decidir una ruta.
@@ -23,9 +29,10 @@ En Mérida, el suelo kárstico, la falta de drenaje pluvial y los puntos bajos h
 | **AWS Lambda** | Función `api` que enruta `/v1`: riesgo, reportes, rutas |
 | **Amazon API Gateway** (HTTP API) | Entrada HTTPS pública `/v1` con CORS |
 | **Amazon DynamoDB** | Tabla `Reports` con TTL de 24 h |
-| **Amazon Location Service** | Mapa base y cálculo de rutas con áreas a evitar |
 | **AWS Amplify Hosting** | Hosting de la SPA |
 | **AWS IAM** | Rol de mínimo privilegio para la Lambda |
+
+En la demo, la ruta que evita riesgo la calcula `LocalGraphRoutingProvider` (Dijkstra sobre los tramos, dentro de la Lambda). **Amazon Location Service** (`CalculateRoutes` con `Avoid.Areas`) ya está detrás de la interfaz `RoutingProvider` como siguiente paso, pero todavía no está conectado.
 
 Diagrama: [docs/arquitectura.md](docs/arquitectura.md).
 
@@ -45,11 +52,9 @@ Todo el código de la aplicación (`web/`, `api/`, `core/`, `scripts/`) se escri
 Requisitos: Node.js 20+ y npm.
 
 ```bash
-# 1. Datos y snapshots del replay
+# 1. Dependencias (los datos y snapshots ya vienen en data/; para regenerarlos: cd api && npm run data)
 cd core && npm install && cd ..
 cd api && npm install && cd ..
-npx tsx scripts/generate-data.ts
-npx tsx scripts/build-replay.ts
 
 # 2. API local (misma lógica que la Lambda), en http://127.0.0.1:4020/v1
 cd api && npm run dev
@@ -63,7 +68,7 @@ Solo contra el mock del contrato (sin datos reales): `cd web && npm run mock` y 
 
 Pruebas: `npm test` y `npm run typecheck` dentro de `core/`, `api/` y `web/`.
 
-Despliegue en AWS: ver [docs/deploy-aws.md](docs/deploy-aws.md).
+Despliegue en AWS (idempotente, crea S3, DynamoDB, IAM, Lambda, API Gateway y Amplify): `bash scripts/deploy-aws.sh` con el perfil `aguaruta` de AWS CLI v2.
 
 ## Estructura
 

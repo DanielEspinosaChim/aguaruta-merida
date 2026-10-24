@@ -179,7 +179,7 @@ Regla: **mock primero, lógica real después.** Cada fase tiene un "hecho cuando
 ### Fase 0: Arranque (≈ 30 min)
 - Repo con la estructura de 1.6; `contract/openapi.yaml` y `types.ts` desde las secciones 3 y 4.
 - Verificar en la documentación vigente las áreas a evitar de Amazon Location y los datos de lluvia del 29-may.
-- **Hecho cuando:** `npx @stoplight/prism-cli mock contract/openapi.yaml -p 4010` responde.
+- **Hecho cuando:** `cd web && npm run mock` responde en `http://127.0.0.1:4010/v1`. (Prism directo ignora el prefijo `/v1` de `servers`; `web/scripts/mock.mjs` corre Prism en 4011 y un proxy en 4010 que quita `/v1` y agrega CORS.)
 
 ### Fase 1: Cliente contra el mock
 - Mapa con capa de riesgo por color, control de tiempo (`asOf`), formulario de reporte (foto simulada), pantalla de ruta, manejo de 400/404/500 mostrando `error.message` y `disclaimer` visible siempre.

@@ -1,0 +1,16 @@
+{
+  "modelVersion": "v0-heuristic",
+  "weights": {
+    "rain1h": 0.35,
+    "rain3h": 0.2,
+    "lowPoint": 0.2,
+    "depression": 0.15,
+    "history": 0.1
+  },
+  "refs": {
+    "rain1hRef": 40,
+    "rain3hRef": 75,
+    "lowPointRefM": 2,
+    "historyRef": 5
+  }
+}

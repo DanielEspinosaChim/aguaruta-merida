@@ -6,7 +6,7 @@ flowchart LR
     WEB["SPA React + MapLibre<br/>(AWS Amplify Hosting)"]
   end
 
-  subgraph AWS["AWS · us-east-1"]
+  subgraph AWS["AWS · us-east-2"]
     APIGW["Amazon API Gateway<br/>HTTP API /v1"]
     LAMBDA["AWS Lambda<br/>api (router)"]
     S3S[("Amazon S3<br/>segments.json + snapshots/")]
@@ -38,5 +38,7 @@ flowchart LR
 | Amazon DynamoDB | Tabla `Reports` con TTL de 24 h |
 | Amazon Location Service | Mapa base y `CalculateRoutes` con áreas a evitar |
 | AWS IAM | Rol de mínimo privilegio de la Lambda |
+
+**Estado de la demo:** Amazon Location (en el diagrama) es el siguiente paso; hoy la Lambda calcula las rutas con `LocalGraphRoutingProvider` y el mapa base usa teselas de OpenStreetMap.
 
 En local la misma Lambda corre con `api/src/local-server.ts`: snapshots desde disco, reportes en memoria y ruteo con `LocalGraphRoutingProvider` (Dijkstra sobre los tramos).
