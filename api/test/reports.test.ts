@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { call, contractErrors, makeApp, PILOT_BBOX } from './helpers';
 
-// Junto al mercado (Calle 60 x 61), sobre un tramo de la retícula.
-const ON_STREET = [-89.6237, 20.9661];
+// Junto al mercado, sobre un tramo real de Calle 63 (data/segments.json viene de OSM).
+const ON_STREET = [-89.623321, 20.966445];
+// Fuera de la red importada: a más de 30 m de cualquier calle.
+const OFF_STREET = [-89.648, 20.945];
 
 async function segmentAt(app: ReturnType<typeof makeApp>, segmentId: string, asOf: string) {
   const res = await call(app, 'GET', '/v1/risk/segments', { query: { bbox: PILOT_BBOX, asOf } });
@@ -37,7 +39,7 @@ describe('reportes', () => {
   it('reporte lejos de cualquier calle queda con segmentId null', async () => {
     const app = makeApp();
     const res = await call(app, 'POST', '/v1/reports', {
-      body: { location: { type: 'Point', coordinates: [-89.6230, 20.9675] }, waterLevel: 'puddle' },
+      body: { location: { type: 'Point', coordinates: OFF_STREET }, waterLevel: 'puddle' },
     });
     expect(res.status).toBe(201);
     expect(res.json.segmentId).toBeNull();
