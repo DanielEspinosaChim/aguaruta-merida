@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from './app';
 import { LocalGraphRoutingProvider } from './routing';
 import { DynamoReportStore, S3PhotoSigner, S3SnapshotStore } from './aws-stores';
+import { OpenMeteoRain } from './rain';
 import { LocalPhotoSigner, LocalSnapshotStore, MemoryReportStore } from './stores';
 
 /** Subconjunto del evento de API Gateway HTTP API (payload v2) que usamos. */
@@ -20,8 +21,12 @@ export interface HttpApiEventV2 {
 const { SNAPSHOT_BUCKET, REPORTS_TABLE, PHOTOS_BUCKET } = process.env;
 const DATA_DIR = process.env.DATA_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'data');
 
+const snapshots = SNAPSHOT_BUCKET ? new S3SnapshotStore(SNAPSHOT_BUCKET) : new LocalSnapshotStore(DATA_DIR);
+
 const app = createApp({
-  snapshots: SNAPSHOT_BUCKET ? new S3SnapshotStore(SNAPSHOT_BUCKET) : new LocalSnapshotStore(DATA_DIR),
+  snapshots,
+  hydro: () => snapshots.getHydro(),
+  rain: new OpenMeteoRain(),
   reports: REPORTS_TABLE ? new DynamoReportStore(REPORTS_TABLE) : new MemoryReportStore(),
   photos: PHOTOS_BUCKET
     ? new S3PhotoSigner(PHOTOS_BUCKET)

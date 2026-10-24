@@ -41,6 +41,8 @@ export interface SegmentRiskProperties {
   rainfall1hMm: number;
   rainfall3hMm: number;
   reportCount60m: number;
+  /** Profundidad estimada por el modelo hidrológico (cm). */
+  waterDepthCm?: number;
 }
 
 export interface SegmentRiskFeature {
@@ -60,6 +62,19 @@ export interface ListRiskSegmentsParams {
   bbox: string; // "minLng,minLat,maxLng,maxLat"
   asOf?: string;
   minLevel?: RiskLevel;
+  /** Tormenta de diseño (mm en 1 h) sumada a la lluvia real. */
+  stormMmPerH?: number;
+}
+
+export interface RainfallSeries {
+  source: string;
+  stepMinutes: number;
+  series: { t: string; mm: number }[];
+}
+
+export interface GetRainfallParams {
+  from: string;
+  to: string;
 }
 
 /* ---------- Reportes ---------- */
@@ -110,6 +125,7 @@ export interface RouteRequest {
   mode?: TravelMode; // por defecto 'car'
   avoidLevel?: 'medium' | 'high'; // por defecto 'high'
   asOf?: string;
+  stormMmPerH?: number;
 }
 
 export interface RouteLeg {
@@ -148,6 +164,7 @@ export class ApiError extends Error {
 
 export interface AguaRutaApi {
   listRiskSegments(params: ListRiskSegmentsParams): Promise<SegmentRiskCollection>;
+  getRainfall(params: GetRainfallParams): Promise<RainfallSeries>;
   createReport(body: CreateReportRequest): Promise<FloodReport>;
   listReports(params: ListReportsParams): Promise<FloodReportList>;
   createPhotoUploadUrl(body: PhotoUploadRequest): Promise<PhotoUploadResponse>;

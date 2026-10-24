@@ -5,10 +5,12 @@ import {
   type AguaRutaApi,
   type FloodReport,
   type Position,
+  type RainfallSeries,
   type RiskLevel,
   type RouteResult,
   type SegmentRiskCollection,
 } from './api/types';
+import { DashboardPanel, type TimelineMode } from './components/DashboardPanel';
 import { Disclaimer } from './components/Disclaimer';
 import { Intro } from './components/Intro';
 import { MapView } from './components/MapView';
@@ -17,7 +19,7 @@ import { RainOverlay } from './components/RainOverlay';
 import { ReplayControl } from './components/ReplayControl';
 import { ReportPanel } from './components/ReportPanel';
 import { RoutePanel } from './components/RoutePanel';
-import { LEVEL_LABELS, REPLAY_STEPS, stepToAsOf } from './lib/replay';
+import { LEVEL_LABELS, REPLAY_START, REPLAY_STEP_MS, REPLAY_STEPS } from './lib/replay';
 import { useTheme } from './lib/theme';
 import { isValidBbox } from './lib/validation';
 
@@ -75,19 +77,50 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
   const [disclaimer, setDisclaimer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const [tab, setTab] = useState<'route' | 'report' | 'model'>('route');
+  const [tab, setTab] = useState<'dash' | 'route' | 'report' | 'model'>('dash');
+  const [tlMode, setTlMode] = useState<TimelineMode>('event');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [storm, setStorm] = useState(0);
+  const [rain, setRain] = useState<RainfallSeries | null>(null);
   const [theme, toggleTheme] = useTheme();
   const [introDone, setIntroDone] = useState(
     import.meta.env.MODE === 'test' || (typeof location !== 'undefined' && location.search.includes('nointro')),
   );
 
-  const asOf = stepToAsOf(step);
+  // Rango de la línea de tiempo: evento del 29-may, en vivo (−3 h … +12 h) u otra fecha (día completo, hora Mérida).
+  const liveStart = Math.floor(Date.now() / REPLAY_STEP_MS) * REPLAY_STEP_MS - 3 * 3600_000;
+  const timeline =
+    tlMode === 'event'
+      ? { startMs: REPLAY_START, steps: REPLAY_STEPS, title: 'Línea 29·05 — tormenta real' }
+      : tlMode === 'live'
+        ? { startMs: liveStart, steps: 60, title: 'En vivo — pronóstico 12 h' }
+        : { startMs: Date.parse(`${date}T06:00:00Z`), steps: 96, title: `Fecha ${date}` };
+  const asOf = new Date(timeline.startMs + Math.min(step, timeline.steps) * REPLAY_STEP_MS).toISOString().replace('.000Z', 'Z');
+  const rangeFrom = new Date(timeline.startMs).toISOString().replace('.000Z', 'Z');
+  const rangeTo = new Date(timeline.startMs + timeline.steps * REPLAY_STEP_MS).toISOString().replace('.000Z', 'Z');
+
+  const changeMode = useCallback((m: TimelineMode) => {
+    setTlMode(m);
+    setPlaying(false);
+    setStep(m === 'event' ? Math.round(REPLAY_STEPS * (5 / 9)) : m === 'live' ? 12 : 48);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getRainfall({ from: rangeFrom, to: rangeTo })
+      .then((r) => !cancelled && setRain(r))
+      .catch(() => !cancelled && setRain(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [api, rangeFrom, rangeTo]);
 
   useEffect(() => {
     if (!bbox || !isValidBbox(bbox)) return;
     let cancelled = false;
     api
-      .listRiskSegments({ bbox, asOf })
+      .listRiskSegments({ bbox, asOf, ...(storm > 0 ? { stormMmPerH: storm } : {}) })
       .then((fc) => {
         if (cancelled) return;
         setSegments(fc);
@@ -98,7 +131,7 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
     return () => {
       cancelled = true;
     };
-  }, [api, bbox, asOf, refresh]);
+  }, [api, bbox, asOf, storm, refresh]);
 
   useEffect(() => {
     if (!bbox || !isValidBbox(bbox)) return;
@@ -131,6 +164,7 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
     km[f.properties.level] += lineKm(f.geometry.coordinates);
   }
   const totalKm = km.high + km.medium + km.low;
+  const kmByDepth = { any: 0, medium: km.medium + km.high, high: km.high };
   const pctRisk = totalKm ? Math.round(((km.high + km.medium) / totalKm) * 100) : 0;
   const rainMm = segments?.features[0]?.properties.rainfall1hMm ?? 0;
 
@@ -194,14 +228,17 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
         </section>
 
         <div className={`tabs tab-${tab}`} role="tablist">
+          <button type="button" role="tab" aria-selected={tab === 'dash'} onClick={() => setTab('dash')}>
+            <em>01</em> Panel
+          </button>
           <button type="button" role="tab" aria-selected={tab === 'route'} onClick={() => setTab('route')}>
-            <em>02</em> Ruta segura
+            <em>02</em> Ruta
           </button>
           <button type="button" role="tab" aria-selected={tab === 'report'} onClick={() => setTab('report')}>
-            <em>03</em> Reportar
+            <em>03</em> Reporte
           </button>
           <button type="button" role="tab" aria-selected={tab === 'model'} onClick={() => setTab('model')}>
-            <em>04</em> ¿Cómo decide?
+            <em>04</em> Modelo
           </button>
           <span className="tab-ink" aria-hidden="true" />
         </div>
@@ -223,6 +260,21 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
               onPick={setPickMode}
               onResult={setRoute}
               result={route}
+              stormMmPerH={storm}
+            />
+          </div>
+          <div className="pane" hidden={tab !== 'dash'}>
+            <DashboardPanel
+              segments={segments}
+              rain={rain}
+              asOf={asOf}
+              mode={tlMode}
+              date={date}
+              onMode={changeMode}
+              onDate={setDate}
+              storm={storm}
+              onStorm={setStorm}
+              kmByDepth={kmByDepth}
             />
           </div>
           <div className="pane" hidden={tab !== 'model'}>
@@ -251,6 +303,9 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
         onStep={onStep}
         onTogglePlay={() => setPlaying((p) => !p)}
         rainMm={rainMm}
+        startMs={timeline.startMs}
+        steps={timeline.steps}
+        title={timeline.title + (storm > 0 ? ` · +${storm} mm/h` : '')}
       />
 
       {!introDone && <Intro onDone={onIntroDone} />}

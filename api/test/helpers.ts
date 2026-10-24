@@ -6,6 +6,7 @@ import addFormats from 'ajv-formats';
 import { parse } from 'yaml';
 import { createApp } from '../src/app';
 import { LocalGraphRoutingProvider } from '../src/routing';
+import { StaticRain } from '../src/rain';
 import { LocalPhotoSigner, LocalSnapshotStore, MemoryReportStore } from '../src/stores';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -48,3 +49,28 @@ export async function call(app: App, method: string, path: string, opts: { query
 
 export const PILOT_BBOX = '-89.64,20.95,-89.60,20.99';
 export const PEAK = '2026-05-29T20:30:00Z';
+
+/** App con el modelo hidrológico y lluvia fija (sin red). */
+export function makeHydroApp(model: import('../../core/src/index').HydroModel, rain: Map<number, number>, now = () => Date.now()) {
+  const snapshots = new LocalSnapshotStore(DATA_DIR);
+  return createApp({
+    snapshots,
+    hydro: async () => model,
+    rain: new StaticRain(rain),
+    reports: new MemoryReportStore(),
+    photos: new LocalPhotoSigner('http://127.0.0.1:4020'),
+    routing: (segments) => new LocalGraphRoutingProvider(segments),
+    now,
+    log: () => {},
+  });
+}
+
+/** Terreno de prueba: toda la red en una sola hondonada enorme (todo se inunda con lluvia). */
+export function floodedEverywhere() {
+  const segs = JSON.parse(readFileSync(join(DATA_DIR, 'segments.json'), 'utf8')) as { segmentId: string }[];
+  return {
+    cellAreaM2: 100,
+    depressions: [{ spill: 100, catchAreaM2: 1e9, zs: [0] }],
+    segments: Object.fromEntries(segs.map((s) => [s.segmentId, [[0, 0]] as [number, number][]])),
+  };
+}

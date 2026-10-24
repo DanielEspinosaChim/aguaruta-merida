@@ -4,6 +4,8 @@ import { computeRisk, levelFromScore } from '../src/risk';
 import type { RiskModel } from '../src/types';
 
 const model = modelJson as RiskModel;
+/** Modelo fijo para verificar la fórmula sin depender de la calibración de data/model.json. */
+const formulaModel: RiskModel = { ...model, refs: { rain1hRef: 40, rain3hRef: 75, lowPointRefM: 2, historyRef: 5 } };
 
 describe('computeRisk', () => {
   it('C003-1: aplica la fórmula v0 con un ejemplo numérico', () => {
@@ -11,7 +13,7 @@ describe('computeRisk', () => {
     const r = computeRisk(
       { relativeElevationM: -1, inDepression: true, historicalFloodCount: 2 },
       { accum1hMm: 20, accum3hMm: 30 },
-      model,
+      formulaModel,
     );
     expect(r.score).toBeCloseTo(0.545, 6);
     expect(r.level).toBe('medium');

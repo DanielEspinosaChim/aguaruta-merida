@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import {
   applyReports,
+  depthToScore,
   isAtLeast,
+  levelFromScore,
+  segmentDepthsCm,
+  simulateLevels,
+  type HydroModel,
+  type HydroParams,
   lineIntersectsBbox,
   maxLevel,
   nearestSegment,
@@ -23,6 +29,8 @@ import {
   type ApiRequest,
   type ApiResponse,
 } from './http';
+import modelJson from '../../data/model.json';
+import { STEP_MS, type RainProvider } from './rain';
 import type { RoutingProvider, TravelMode } from './routing';
 import { pickSnapshot, type PhotoSigner, type ReportStore, type SnapshotStore, type StoredReport } from './stores';
 import { ulid } from './ulid';
@@ -41,15 +49,28 @@ export const ROUTE_DISCLAIMER = 'Riesgo estimado, no garantía. La ruta puede cr
 const REPORT_TTL_S = 24 * 60 * 60;
 const PHOTO_URL_TTL_S = 300;
 const REPORT_SNAP_M = 30;
+const HYDRO = modelJson.hydro as HydroParams & { antecedentHours: number };
+const MAX_RAIN_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
+const sum1 = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) * 10) / 10;
 
 export interface AppDeps {
   snapshots: SnapshotStore;
   reports: ReportStore;
   photos: PhotoSigner;
   routing: (segments: StreetSegment[]) => RoutingProvider;
+  /** Modelo hidrológico v1 (terreno). Si falta, se usan los snapshots precalculados. */
+  hydro?: () => Promise<HydroModel>;
+  rain?: RainProvider;
   /** Reloj inyectable para tests. */
   now?: () => number;
   log?: (msg: string, meta?: Record<string, unknown>) => void;
+}
+
+function optionalStorm(v: unknown): number {
+  if (v === undefined || v === null || v === '') return 0;
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 150) throw badRequest('stormMmPerH debe ser un número entre 0 y 150.');
+  return n;
 }
 
 export function createApp(deps: AppDeps) {
@@ -68,8 +89,54 @@ export function createApp(deps: AppDeps) {
     createdAt: r.createdAt,
   });
 
-  /** Snapshot elegido + ajuste por reportes de la última hora (reloj real: los reportes son en vivo). */
-  async function adjustedSnapshot(asOfMs?: number) {
+  type HydroEntry = AdjustedEntry & { waterDepthCm: number };
+  const hydroCache = new Map<number, Promise<{ base: HydroEntry[]; depths: Map<string, number> }>>();
+
+  /** Corre el modelo hidrológico para el paso de 15 min `t` (lluvia de las `antecedentHours` previas). */
+  function hydroBase(t: number, stormMmPerH: number) {
+    const key = t * 1000 + Math.round(stormMmPerH);
+    let hit = hydroCache.get(key);
+    if (!hit) {
+      hit = (async () => {
+        const from = t - HYDRO.antecedentHours * 3600_000 + STEP_MS;
+        const [model, rain, segments] = await Promise.all([deps.hydro!(), deps.rain!.get(from, t), deps.snapshots.getSegments()]);
+        const series: number[] = [];
+        for (let s = from; s <= t; s += STEP_MS) series.push(rain.byStep.get(s) ?? 0);
+        // Tormenta de diseño: X mm repartidos en los 4 pasos (1 h) que terminan en t.
+        for (let k = Math.max(0, series.length - 4); k < series.length; k++) series[k]! += stormMmPerH / 4;
+        const depths = segmentDepthsCm(model, simulateLevels(model, series, HYDRO));
+        const rainfall1hMm = sum1(series.slice(-4));
+        const rainfall3hMm = sum1(series.slice(-12));
+        const base = segments.map((s) => {
+          const waterDepthCm = depths.get(s.segmentId) ?? 0;
+          const score = Math.round(depthToScore(waterDepthCm, HYDRO) * 1000) / 1000;
+          return { segmentId: s.segmentId, score, level: levelFromScore(score), rainfall1hMm, rainfall3hMm, reportCount60m: 0, waterDepthCm };
+        });
+        return { base, depths };
+      })();
+      hit.catch(() => hydroCache.delete(key));
+      if (hydroCache.size > 200) hydroCache.clear();
+      hydroCache.set(key, hit);
+    }
+    return hit;
+  }
+
+  /** Riesgo para asOf (o ahora) + reportes de la última hora que el modelo u otro reporte corroboran. */
+  async function adjustedSnapshot(asOfMs?: number, stormMmPerH = 0) {
+    if (deps.hydro && deps.rain) {
+      const t = Math.floor((asOfMs ?? now()) / STEP_MS) * STEP_MS;
+      const { base, depths } = await hydroBase(t, stormMmPerH);
+      const nowMs = now();
+      const reports = await deps.reports.listSince(nowMs - REPORT_WINDOW_MS);
+      const perSeg = new Map<string, number>();
+      for (const r of reports) if (r.segmentId) perSeg.set(r.segmentId, (perSeg.get(r.segmentId) ?? 0) + 1);
+      // Un reporte aislado donde el modelo no ve agua no cambia el mapa (evita falsos positivos).
+      const corroborated = reports.filter(
+        (r) => r.segmentId && ((depths.get(r.segmentId) ?? 0) > 0 || (perSeg.get(r.segmentId) ?? 0) >= 2),
+      );
+      const entries = applyReports(base, corroborated, nowMs) as HydroEntry[];
+      return { snapshot: { computedAt: new Date(t).toISOString().replace('.000Z', 'Z') }, entries };
+    }
     const index = await deps.snapshots.getIndex();
     const chosen = pickSnapshot(index, asOfMs);
     const snapshot = await deps.snapshots.getSnapshot(chosen.key);
@@ -99,8 +166,9 @@ export function createApp(deps: AppDeps) {
     const bbox = requireBbox(req.query.bbox);
     const asOfMs = optionalDateTime(req.query.asOf, 'asOf');
     const minLevel = optionalRiskLevel(req.query.minLevel, 'minLevel');
+    const storm = optionalStorm(req.query.stormMmPerH);
     const segments = await deps.snapshots.getSegments();
-    const { snapshot, entries } = await adjustedSnapshot(asOfMs);
+    const { snapshot, entries } = await adjustedSnapshot(asOfMs, storm);
     const byId = new Map<string, AdjustedEntry>(entries.map((e) => [e.segmentId, e]));
 
     const features = [];
@@ -119,10 +187,24 @@ export function createApp(deps: AppDeps) {
           rainfall1hMm: e.rainfall1hMm,
           rainfall3hMm: e.rainfall3hMm,
           reportCount60m: e.reportCount60m,
+          ...('waterDepthCm' in e ? { waterDepthCm: (e as HydroEntry).waterDepthCm } : {}),
         },
       });
     }
     return json(200, { type: 'FeatureCollection', computedAt: snapshot.computedAt, disclaimer: RISK_DISCLAIMER, features });
+  }
+
+  async function getRainfall(req: ApiRequest): Promise<ApiResponse> {
+    const fromMs = optionalDateTime(req.query.from, 'from');
+    const toMs = optionalDateTime(req.query.to, 'to');
+    if (fromMs === undefined || toMs === undefined) throw badRequest('from y to son obligatorios.');
+    if (toMs < fromMs || toMs - fromMs > MAX_RAIN_RANGE_MS) throw badRequest('El rango debe ser de 0 a 7 días.');
+    if (!deps.rain) return json(200, { source: 'sin fuente', stepMinutes: 15, series: [] });
+    const rain = await deps.rain.get(fromMs, toMs);
+    const series = [...rain.byStep]
+      .sort((a, b) => a[0] - b[0])
+      .map(([t, mm]) => ({ t: new Date(t).toISOString().replace('.000Z', 'Z'), mm }));
+    return json(200, { source: rain.source, stepMinutes: 15, series });
   }
 
   async function createReport(req: ApiRequest): Promise<ApiResponse> {
@@ -173,6 +255,7 @@ export function createApp(deps: AppDeps) {
     const avoidLevel = (body.avoidLevel ?? 'high') as RiskLevel;
     if (avoidLevel !== 'medium' && avoidLevel !== 'high') throw badRequest('avoidLevel debe ser medium o high.');
     const asOfMs = optionalDateTime(body.asOf, 'asOf');
+    const storm = optionalStorm(body.stormMmPerH);
 
     const pilot = await getPilotBbox();
     if (!pointInBbox(origin, pilot) || !pointInBbox(destination, pilot)) {
@@ -181,7 +264,7 @@ export function createApp(deps: AppDeps) {
 
     const segments = await deps.snapshots.getSegments();
     router ??= deps.routing(segments);
-    const { snapshot, entries } = await adjustedSnapshot(asOfMs);
+    const { snapshot, entries } = await adjustedSnapshot(asOfMs, storm);
     const levelOf = new Map<string, RiskLevel>(entries.map((e) => [e.segmentId, e.level]));
     const risky = new Set(entries.filter((e) => isAtLeast(e.level, avoidLevel)).map((e) => e.segmentId));
 
@@ -220,6 +303,7 @@ export function createApp(deps: AppDeps) {
 
   const routes: Record<string, (req: ApiRequest) => Promise<ApiResponse>> = {
     'GET /v1/risk/segments': listRiskSegments,
+    'GET /v1/rainfall': getRainfall,
     'POST /v1/reports': createReport,
     'GET /v1/reports': listReports,
     'POST /v1/reports/photo-upload-url': createPhotoUploadUrl,

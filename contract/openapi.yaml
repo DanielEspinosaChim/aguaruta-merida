@@ -23,8 +23,11 @@ paths:
       tags: [Risk]
       summary: Riesgo de inundación por tramo dentro de un bbox
       description: |
-        Con `asOf` usa el snapshot más cercano anterior a esa fecha (replay de la demo).
-        Sin `asOf` usa el último. Incluye el ajuste por reportes de la última hora.
+        Modelo hidrológico v1: lluvia real (Open-Meteo, histórico o pronóstico) sobre el terreno satelital
+        (SRTM) con escurrimiento SCS-CN y llenado de hondonadas; devuelve la profundidad estimada por tramo.
+        `asOf` acepta cualquier fecha (pasada o hasta 3 días adelante); se redondea al paso de 15 min anterior.
+        Sin `asOf` calcula para ahora (en vivo). Los reportes de la última hora solo ajustan tramos donde el
+        modelo predice agua o hay al menos 2 reportes (corroboración).
       parameters:
         - name: bbox
           in: query
@@ -46,6 +49,15 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/RiskLevel'
+        - name: stormMmPerH
+          in: query
+          required: false
+          description: Tormenta de diseño (mm en 1 h) que se suma a la lluvia real de la hora previa a asOf. Para escenarios "¿y si…?".
+          schema:
+            type: number
+            minimum: 0
+            maximum: 150
+          example: 40
       responses:
         '200':
           description: FeatureCollection de tramos con riesgo
@@ -70,6 +82,44 @@ paths:
                       rainfall1hMm: 38.5
                       rainfall3hMm: 71.2
                       reportCount60m: 2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rainfall:
+    get:
+      operationId: getRainfall
+      tags: [Risk]
+      summary: Serie de lluvia (mm cada 15 min) que alimenta al modelo
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          example: '2026-05-29T15:00:00Z'
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          example: '2026-05-30T00:00:00Z'
+      responses:
+        '200':
+          description: Serie de lluvia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RainfallSeries'
+              example:
+                source: Open-Meteo historical-forecast
+                stepMinutes: 15
+                series:
+                  - t: '2026-05-29T16:00:00Z'
+                    mm: 1.7
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -287,6 +337,26 @@ components:
             requestId:
               type: string
 
+    RainfallSeries:
+      type: object
+      required: [source, stepMinutes, series]
+      properties:
+        source:
+          type: string
+        stepMinutes:
+          type: integer
+        series:
+          type: array
+          items:
+            type: object
+            required: [t, mm]
+            properties:
+              t:
+                type: string
+                format: date-time
+              mm:
+                type: number
+
     RiskLevel:
       type: string
       enum: [low, medium, high]
@@ -361,6 +431,10 @@ components:
               type: number
             reportCount60m:
               type: integer
+            waterDepthCm:
+              type: number
+              minimum: 0
+              description: Profundidad de agua estimada por el modelo hidrológico (cm).
 
     SegmentRiskCollection:
       type: object
@@ -473,6 +547,11 @@ components:
         asOf:
           type: string
           format: date-time
+        stormMmPerH:
+          type: number
+          minimum: 0
+          maximum: 150
+          description: Tormenta de diseño (mm en 1 h) sumada a la lluvia real.
 
     RouteLeg:
       type: object

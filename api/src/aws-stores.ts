@@ -2,7 +2,7 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
-import type { Snapshot, StreetSegment } from '../../core/src/index';
+import type { HydroModel, Snapshot, StreetSegment } from '../../core/src/index';
 import type { PhotoSigner, ReportStore, SnapshotIndexEntry, SnapshotStore, StoredReport } from './stores';
 
 /* Implementaciones AWS de los stores. La Lambda usa su rol IAM; nunca hay claves en el código. */
@@ -21,6 +21,12 @@ export class S3SnapshotStore implements SnapshotStore {
   private readonly cache = new Map<string, Promise<Snapshot>>();
 
   constructor(private readonly bucket: string) {}
+
+  private hydro?: Promise<HydroModel>;
+  getHydro(): Promise<HydroModel> {
+    this.hydro ??= getJson<HydroModel>(this.bucket, 'hydro.json');
+    return this.hydro;
+  }
 
   getSegments(): Promise<StreetSegment[]> {
     this.segments ??= getJson<StreetSegment[]>(this.bucket, 'segments.json');

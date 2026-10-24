@@ -23,6 +23,7 @@ function fakeApi(): AguaRutaApi {
       features: [],
     }),
     listReports: vi.fn().mockResolvedValue({ items: [] }),
+    getRainfall: vi.fn().mockResolvedValue({ source: 'test', stepMinutes: 15, series: [] }),
     createReport: vi.fn(),
     createPhotoUploadUrl: vi.fn(),
     calculateRoute: vi.fn(),

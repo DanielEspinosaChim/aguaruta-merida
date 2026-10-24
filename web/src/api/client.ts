@@ -12,6 +12,8 @@ import {
   type RouteRequest,
   type RouteResult,
   type SegmentRiskCollection,
+  type GetRainfallParams,
+  type RainfallSeries,
 } from './types';
 
 export const DEFAULT_API_BASE_URL = 'http://127.0.0.1:4010/v1';
@@ -75,6 +77,7 @@ export function createApiClient(
   return {
     listRiskSegments: (p: ListRiskSegmentsParams) =>
       request<SegmentRiskCollection>('GET', `/risk/segments${query(p)}`),
+    getRainfall: (p: GetRainfallParams) => request<RainfallSeries>('GET', `/rainfall${query(p)}`),
     createReport: (b: CreateReportRequest) => request<FloodReport>('POST', '/reports', b),
     listReports: (p: ListReportsParams) => request<FloodReportList>('GET', `/reports${query(p)}`),
     createPhotoUploadUrl: (b: PhotoUploadRequest) =>

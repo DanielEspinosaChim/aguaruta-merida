@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { call, contractErrors, makeApp, PEAK, PILOT_BBOX } from './helpers';
+import { call, contractErrors, floodedEverywhere, makeApp, makeHydroApp, PEAK, PILOT_BBOX } from './helpers';
 
 // Calle 70 x 61 → Calle 50 x 61: la ruta directa cruza la depresión del mercado (Calle 60 x 61).
 const ORIGIN = [-89.63095, 20.9668];
@@ -25,9 +25,10 @@ describe('POST /v1/routes', () => {
   });
 
   it('C005-2: sin alternativa posible → 404 ROUTE_NOT_FOUND', async () => {
-    // En el pico todos los tramos están en medium o más: evitar "medium" deja la red vacía.
-    const res = await call(app, 'POST', '/v1/routes', {
-      body: { origin: ORIGIN, destination: DESTINATION, avoidLevel: 'medium', asOf: PEAK },
+    // Terreno de prueba donde toda la red queda bajo agua: no existe ruta que evite el riesgo.
+    const flooded = makeHydroApp(floodedEverywhere(), new Map());
+    const res = await call(flooded, 'POST', '/v1/routes', {
+      body: { origin: ORIGIN, destination: DESTINATION, avoidLevel: 'medium', asOf: PEAK, stormMmPerH: 60 },
     });
     expect(res.status).toBe(404);
     expect(contractErrors('ErrorResponse', res.json)).toEqual([]);

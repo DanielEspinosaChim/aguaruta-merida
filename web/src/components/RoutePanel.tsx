@@ -13,13 +13,24 @@ export interface RoutePanelProps {
   onPick: (mode: PickMode) => void;
   onResult: (r: RouteResult | null) => void;
   result: RouteResult | null;
+  /** Tormenta de diseño activa (mm en 1 h). */
+  stormMmPerH?: number;
 }
+
+/** Tolerancia de agua por vehículo → qué nivel evitar (bajo < 10 cm, medio 10–20 cm, alto ≥ 20 cm). */
+export const VEHICLES = {
+  suv: { label: 'SUV / camioneta', mode: 'car', avoidLevel: 'high', tolerance: 'hasta 20 cm' },
+  compacto: { label: 'Auto compacto', mode: 'car', avoidLevel: 'medium', tolerance: 'hasta 10 cm' },
+  moto: { label: 'Moto', mode: 'car', avoidLevel: 'medium', tolerance: 'hasta 10 cm' },
+  pie: { label: 'A pie', mode: 'walk', avoidLevel: 'medium', tolerance: 'hasta 10 cm' },
+} as const satisfies Record<string, { label: string; mode: TravelMode; avoidLevel: 'medium' | 'high'; tolerance: string }>;
+type Vehicle = keyof typeof VEHICLES;
 
 const fmt = (p?: Position) => (p ? `${p[0].toFixed(4)}, ${p[1].toFixed(4)}` : '—');
 
-export function RoutePanel({ api, origin, destination, asOf, picking, onPick, onResult, result }: RoutePanelProps) {
-  const [mode, setMode] = useState<TravelMode>('car');
-  const [avoidLevel, setAvoidLevel] = useState<'medium' | 'high'>('high');
+export function RoutePanel({ api, origin, destination, asOf, picking, onPick, onResult, result, stormMmPerH = 0 }: RoutePanelProps) {
+  const [vehicle, setVehicle] = useState<Vehicle>('suv');
+  const { mode, avoidLevel } = VEHICLES[vehicle];
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,7 +39,9 @@ export function RoutePanel({ api, origin, destination, asOf, picking, onPick, on
     setLoading(true);
     setError(null);
     try {
-      onResult(await api.calculateRoute({ origin, destination, mode, avoidLevel, asOf }));
+      onResult(
+        await api.calculateRoute({ origin, destination, mode, avoidLevel, asOf, ...(stormMmPerH > 0 ? { stormMmPerH } : {}) }),
+      );
     } catch (e) {
       onResult(null);
       setError(e instanceof ApiError ? e.body.error.message : 'Ocurrió un error inesperado. Intenta de nuevo.');
@@ -58,19 +71,18 @@ export function RoutePanel({ api, origin, destination, asOf, picking, onPick, on
       </div>
       <div className="row">
         <label>
-          Modo{' '}
-          <select value={mode} onChange={(e) => setMode(e.target.value as TravelMode)}>
-            <option value="car">Auto</option>
-            <option value="walk">A pie</option>
+          Vehículo{' '}
+          <select value={vehicle} onChange={(e) => setVehicle(e.target.value as Vehicle)}>
+            {(Object.keys(VEHICLES) as Vehicle[]).map((v) => (
+              <option key={v} value={v}>
+                {VEHICLES[v].label}
+              </option>
+            ))}
           </select>
         </label>
-        <label>
-          Evitar desde{' '}
-          <select value={avoidLevel} onChange={(e) => setAvoidLevel(e.target.value as 'medium' | 'high')}>
-            <option value="high">Riesgo alto</option>
-            <option value="medium">Riesgo medio</option>
-          </select>
-        </label>
+        <span className="muted">
+          Tolera {VEHICLES[vehicle].tolerance} · evita riesgo {avoidLevel === 'high' ? 'alto' : 'medio o alto'}
+        </span>
       </div>
       <button type="button" disabled={!origin || !destination || loading} onClick={calculate}>
         {loading ? 'Calculando…' : 'Calcular ruta'}

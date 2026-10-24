@@ -97,6 +97,8 @@ function attrs(id: string, coords: Position[]) {
   return { relativeElevationM, inDepression, historicalFloodCount };
 }
 
+/** Largo máximo de un tramo (m). Los cortes sin cruce usan un nodo de OSM, así el grafo sigue conectado. */
+const MAX_SEG_M = 120;
 const segments: StreetSegment[] = [];
 for (const w of ways) {
   const name = w.tags?.name ?? w.tags?.ref ?? null;
@@ -107,10 +109,11 @@ for (const w of ways) {
     if (!p) return;
     current.push(p);
     const isCut = i > 0 && (i === w.nodes.length - 1 || (uses.get(nid) ?? 0) > 1);
-    if (isCut && current.length >= 2) {
+    // Corta en cruces y también cada ~120 m, para que solo se marque la parte de la calle que se inunda.
+    const runM = current.slice(1).reduce((s, q, k) => s + haversineM(current[k]!, q), 0);
+    if ((isCut || runM >= MAX_SEG_M) && current.length >= 2) {
       const segmentId = `seg_${w.id.toString(36)}_${part++}`;
-      const lenM = current.slice(1).reduce((s, q, k) => s + haversineM(current[k]!, q), 0);
-      if (lenM >= 3) {
+      if (runM >= 3) {
         segments.push({ segmentId, name, geometry: { type: 'LineString', coordinates: current }, ...attrs(segmentId, current) });
       }
       current = [p];

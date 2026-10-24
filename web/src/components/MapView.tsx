@@ -268,7 +268,7 @@ export function MapView({
       const name = document.createElement('strong');
       name.textContent = String(p.name ?? p.segmentId);
       const data = document.createElement('code');
-      data.textContent = `lluvia 1h ${p.rainfall1hMm} mm · 3h ${p.rainfall3hMm} mm · reportes ${p.reportCount60m}`;
+      data.textContent = `agua estimada ${p.waterDepthCm ?? 0} cm · lluvia 1h ${p.rainfall1hMm} mm · 3h ${p.rainfall3hMm} mm · reportes ${p.reportCount60m}`;
       el.append(head, name, data);
       new maplibregl.Popup({ closeButton: false, offset: 12 }).setLngLat(e.lngLat).setDOMContent(el).addTo(map);
     });

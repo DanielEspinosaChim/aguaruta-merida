@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Position, Snapshot, StreetSegment, WaterLevel } from '../../core/src/index';
+import type { HydroModel, Position, Snapshot, StreetSegment, WaterLevel } from '../../core/src/index';
 
 /* ---------- Snapshots (local ahora; S3 en Fase 3) ---------- */
 
@@ -25,6 +25,12 @@ export class LocalSnapshotStore implements SnapshotStore {
 
   private read<T>(...parts: string[]): T {
     return JSON.parse(readFileSync(join(this.dataDir, ...parts), 'utf8')) as T;
+  }
+
+  private hydro?: Promise<HydroModel>;
+  getHydro(): Promise<HydroModel> {
+    this.hydro ??= Promise.resolve(this.read<HydroModel>('hydro.json'));
+    return this.hydro;
   }
 
   async getSegments(): Promise<StreetSegment[]> {

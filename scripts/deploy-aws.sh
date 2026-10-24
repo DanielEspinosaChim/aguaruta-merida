@@ -36,6 +36,7 @@ done
 $AWS s3api put-bucket-cors --bucket "$PHOTO_BUCKET" --cors-configuration \
   '{"CORSRules":[{"AllowedMethods":["PUT"],"AllowedOrigins":["*"],"AllowedHeaders":["Content-Type"],"MaxAgeSeconds":300}]}'
 $AWS s3 cp data/segments.json "s3://$SNAP_BUCKET/segments.json" --only-show-errors
+$AWS s3 cp data/hydro.json "s3://$SNAP_BUCKET/hydro.json" --only-show-errors
 $AWS s3 sync data/snapshots "s3://$SNAP_BUCKET/snapshots" --only-show-errors --delete
 echo "snapshots subidos a s3://$SNAP_BUCKET"
 
@@ -79,7 +80,7 @@ if $AWS lambda get-function --function-name "$FN" >/dev/null 2>&1; then
   $AWS lambda update-function-configuration --function-name "$FN" --environment "$ENV_VARS" >/dev/null
 else
   $AWS lambda create-function --function-name "$FN" --runtime nodejs20.x --handler index.handler \
-    --role "$ROLE_ARN" --zip-file fileb://api/lambda.zip --timeout 15 --memory-size 512 \
+    --role "$ROLE_ARN" --zip-file fileb://api/lambda.zip --timeout 20 --memory-size 1024 \
     --environment "$ENV_VARS" >/dev/null
 fi
 $AWS lambda wait function-active-v2 --function-name "$FN"

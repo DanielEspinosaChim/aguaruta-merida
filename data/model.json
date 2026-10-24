@@ -1,5 +1,5 @@
 {
-  "modelVersion": "v0.1-heuristic",
+  "modelVersion": "v1-hidrologico",
   "weights": {
     "rain1h": 0.35,
     "rain3h": 0.2,
@@ -12,5 +12,11 @@
     "rain3hRef": 150,
     "lowPointRefM": 1.5,
     "historyRef": 5
+  },
+  "hydro": {
+    "curveNumber": 85,
+    "drainMmPerH": 2,
+    "depthCmMaxScore": 30,
+    "antecedentHours": 24
   }
 }

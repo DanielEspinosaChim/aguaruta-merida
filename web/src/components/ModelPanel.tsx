@@ -1,58 +1,80 @@
-import { LivePanel } from './LivePanel';
-/** Explica cómo decide AguaRuta: factores del riesgo (pesos de data/model.json), umbrales, reportes y ruta. */
-const FACTORS = [
-  { w: 35, name: 'Lluvia última hora', detail: 'mm acumulados en 1 h, normalizados contra la referencia del modelo' },
-  { w: 20, name: 'Lluvia últimas 3 h', detail: 'suelo saturado: el agua ya no se infiltra al subsuelo kárstico' },
-  { w: 20, name: 'Punto bajo', detail: 'elevación relativa negativa: ahí corre y se junta el agua' },
-  { w: 15, name: 'Depresión del terreno', detail: 'la calle está dentro de una hondonada' },
-  { w: 10, name: 'Historial', detail: 'veces que ese tramo se ha inundado antes' },
+/** Explica el modelo hidrológico v1: datos, pasos, umbrales, reportes, ruta y límites. */
+const STEPS = [
+  {
+    n: '01',
+    name: 'Terreno satelital',
+    detail:
+      'Elevación SRTM (misión de radar de la NASA) desde AWS Open Data, 1.6 M celdas de 18 m. Priority-Flood detecta 3,438 hondonadas reales donde se junta el agua.',
+  },
+  {
+    n: '02',
+    name: 'Hacia dónde escurre',
+    detail: 'Cada celda sigue la máxima pendiente (D8) hasta una hondonada: así sabemos qué superficie le aporta agua a cada calle.',
+  },
+  {
+    n: '03',
+    name: 'Lluvia real',
+    detail: 'Open-Meteo cada 15 min: archivo histórico para cualquier fecha y pronóstico para hoy y las próximas horas.',
+  },
+  {
+    n: '04',
+    name: 'Escurrimiento SCS-CN',
+    detail: 'Método del número de curva (NRCS, CN 85 urbano): qué parte de la lluvia corre por la calle y cuánto absorben pozos y suelo kárstico.',
+  },
+  {
+    n: '05',
+    name: 'Llenado de hondonadas',
+    detail: 'El volumen llena cada hondonada según la forma real de su fondo → profundidad en cm por tramo de calle.',
+  },
 ];
 
 export function ModelPanel() {
   return (
-    <>
-    <LivePanel />
     <section className="panel model" aria-label="Cómo decide">
-      <h2>Cómo decide AguaRuta</h2>
-
+      <h2>Modelo hidrológico v1 · cómo predice</h2>
       <p className="model-lede">
-        Cada tramo de calle recibe un <b>puntaje de 0 a 1</b> cada 15 minutos. Es una suma ponderada y transparente:
-        no es una caja negra.
+        No depende de reportes: <b>simula la física del agua</b> sobre el terreno real con la lluvia real.
       </p>
 
-      <ol className="factors">
-        {FACTORS.map((f) => (
-          <li key={f.name}>
-            <span className="w" style={{ ['--w' as string]: `${f.w * 2.6}%` }}>
-              {f.w}%
-            </span>
+      <ol className="factors steps">
+        {STEPS.map((s) => (
+          <li key={s.n}>
+            <span className="w">{s.n}</span>
             <div>
-              <strong>{f.name}</strong>
-              <span>{f.detail}</span>
+              <strong>{s.name}</strong>
+              <span>{s.detail}</span>
             </div>
           </li>
         ))}
       </ol>
 
       <div className="thresholds">
-        <span className="t lvl-low">B &lt; 0.33</span>
-        <span className="t lvl-medium">M 0.33–0.66</span>
-        <span className="t lvl-high">A ≥ 0.66</span>
+        <span className="t lvl-low">B &lt; 10 cm</span>
+        <span className="t lvl-medium">M 10–20 cm</span>
+        <span className="t lvl-high">A ≥ 20 cm</span>
       </div>
 
-      <h2>Reportes ciudadanos</h2>
+      <h2>Reportes ciudadanos: solo corroboran</h2>
       <p className="model-lede">
-        Cada reporte de la última hora suma <b>+0.10</b> al tramo más cercano (≤ 30 m), hasta +0.30. Un reporte{' '}
-        <b>intransitable</b> lo pone en alto de inmediato. Ante la duda, no subestimamos el riesgo.
+        Un reporte <b>aislado</b> en una calle donde el modelo no ve agua <b>no cambia el mapa</b> (evita falsos
+        positivos). Cuenta si el modelo predice agua ahí o si hay 2 o más reportes del mismo tramo.
       </p>
 
-      <h2>La ruta segura</h2>
+      <h2>Ruta según tu vehículo</h2>
       <p className="model-lede">
-        Calculamos la ruta más corta sobre las calles reales (OpenStreetMap) y luego otra que <b>excluye</b> los tramos con
-        el nivel que elegiste evitar. Mostramos ambas con el costo en metros y minutos. Si no existe alternativa, lo
-        decimos.
+        Ruta más corta sobre 14,950 tramos reales (OpenStreetMap) y otra que excluye lo que tu vehículo no tolera: compacto,
+        moto o a pie evitan ≥ 10 cm; SUV evita ≥ 20 cm.
       </p>
+
+      <h2>Límites honestos</h2>
+      <ul className="roadmap">
+        <li>SRTM mide superficie (incluye edificios y árboles) a 18 m: calibrado a ojo, no validado aún.</li>
+        <li>La lluvia es de modelo (~10–25 km): suaviza tormentas locales intensas.</li>
+        <li>
+          Siguiente: LiDAR INEGI, lluvia satelital GPM IMERG y calibración con inundaciones históricas de Protección
+          Civil.
+        </li>
+      </ul>
     </section>
-    </>
   );
 }
