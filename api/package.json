@@ -1,0 +1,30 @@
+{
+  "name": "@aguaruta/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lambda api (router /v1) de AguaRuta + servidor local para la demo sin AWS.",
+  "scripts": {
+    "dev": "tsx src/local-server.ts",
+    "data": "tsx ../scripts/generate-data.ts && tsx ../scripts/build-replay.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bundle": "esbuild src/handler.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.mjs --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\""
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "esbuild": "0.24.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4",
+    "yaml": "2.9.1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1156.0",
+    "@aws-sdk/client-s3": "3.1156.0",
+    "@aws-sdk/lib-dynamodb": "3.1156.0",
+    "@aws-sdk/s3-request-presigner": "3.1156.0"
+  }
+}

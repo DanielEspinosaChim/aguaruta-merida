@@ -1,0 +1,15 @@
+{
+  "name": "@aguaruta/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Funciones puras de AguaRuta: computeRisk, applyReports, geometría. Sin dependencias de AWS.",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}
