@@ -16,19 +16,27 @@ export function ReplayControl({ step, playing, onStep, onTogglePlay }: ReplayCon
   }, [playing, step, onStep]);
 
   const asOf = stepToAsOf(step);
-  const local = new Date(asOf).toLocaleString('es-MX', {
+  const time = new Date(asOf).toLocaleTimeString('es-MX', {
     timeZone: 'America/Merida',
-    dateStyle: 'medium',
-    timeStyle: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
   });
+  const pct = (step / REPLAY_STEPS) * 100;
 
   return (
-    <section className="panel replay">
-      <h2>Replay tormenta 29-may-2026</h2>
-      <div className="row">
-        <button type="button" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'}>
-          {playing ? '⏸' : '▶'}
-        </button>
+    <section className="replay" aria-label="Replay de la tormenta">
+      <button type="button" className="play" onClick={onTogglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'}>
+        {playing ? '❚❚' : '▶'}
+      </button>
+      <div className="clock">
+        <span className="eyebrow">Tormenta · 29 may 2026</span>
+        <strong>{time}</strong>
+        <span className="muted">
+          hora Mérida · <code>{asOf}</code>
+        </span>
+      </div>
+      <div className="track" style={{ ['--pct' as string]: `${pct}%` }}>
         <input
           type="range"
           min={0}
@@ -38,9 +46,12 @@ export function ReplayControl({ step, playing, onStep, onTogglePlay }: ReplayCon
           aria-label="Hora del replay"
           onChange={(e) => onStep(Number(e.target.value))}
         />
-      </div>
-      <div className="muted">
-        {local} (Mérida) · <code>{asOf}</code>
+        <div className="ticks" aria-hidden="true">
+          <span>09:00</span>
+          <span>12:00</span>
+          <span>15:00</span>
+          <span>18:00</span>
+        </div>
       </div>
     </section>
   );

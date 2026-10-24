@@ -2,22 +2,27 @@ import { useEffect, useRef } from 'react';
 import maplibregl, { type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FloodReport, Position, RouteResult, SegmentRiskCollection } from '../api/types';
-import { levelColorExpression } from '../lib/replay';
+import type { Theme } from '../lib/theme';
+import { LEVEL_LABELS, levelColorExpression } from '../lib/replay';
 import { formatBbox } from '../lib/validation';
 
 const MERIDA: Position = [-89.62, 20.97];
 
-const OSM_STYLE: StyleSpecification = {
+const carto = (variant: string) => ({
+  type: 'raster' as const,
+  tiles: ['a', 'b', 'c'].map((s) => `https://${s}.basemaps.cartocdn.com/${variant}/{z}/{x}/{y}@2x.png`),
+  tileSize: 256,
+  attribution: '© OpenStreetMap · © CARTO',
+});
+
+/** Mapa base claro y oscuro (CARTO Positron / Dark Matter); se alterna por visibilidad sin recargar. */
+const BASE_STYLE: StyleSpecification = {
   version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© colaboradores de OpenStreetMap',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+  sources: { light: carto('light_all'), dark: carto('dark_all') },
+  layers: [
+    { id: 'base-light', type: 'raster', source: 'light' },
+    { id: 'base-dark', type: 'raster', source: 'dark', layout: { visibility: 'none' } },
+  ],
 };
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -29,9 +34,12 @@ export interface MapViewProps {
   picks: { origin?: Position; destination?: Position; report?: Position };
   onBboxChange: (bbox: string) => void;
   onMapClick: (p: Position) => void;
+  theme?: Theme;
 }
 
-export function MapView({ segments, reports, route, picks, onBboxChange, onMapClick }: MapViewProps) {
+export function MapView({ segments, reports, route, picks, onBboxChange, onMapClick, theme = 'light' }: MapViewProps) {
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const loaded = useRef(false);
@@ -45,12 +53,13 @@ export function MapView({ segments, reports, route, picks, onBboxChange, onMapCl
     const styleUrl = import.meta.env.VITE_MAP_STYLE_URL as string | undefined;
     const map = new maplibregl.Map({
       container: container.current,
-      style: styleUrl || OSM_STYLE,
+      style: styleUrl || BASE_STYLE,
+      attributionControl: { compact: true },
       center: MERIDA,
       zoom: 13,
     });
     mapRef.current = map;
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     const emitBbox = () => {
       const b = map.getBounds();
@@ -59,14 +68,23 @@ export function MapView({ segments, reports, route, picks, onBboxChange, onMapCl
 
     map.on('load', () => {
       map.addSource('segments', { type: 'geojson', data: EMPTY });
+      const zoomWidth = (base: number) =>
+        ['interpolate', ['linear'], ['zoom'], 12, base * 0.5, 15, base, 18, base * 2.2] as maplibregl.ExpressionSpecification;
+      map.addLayer({
+        id: 'segments-casing',
+        type: 'line',
+        source: 'segments',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': casingColor(), 'line-width': zoomWidth(8) },
+      });
       map.addLayer({
         id: 'segments',
         type: 'line',
         source: 'segments',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': levelColorExpression as unknown as maplibregl.ExpressionSpecification,
-          'line-width': 5,
-          'line-opacity': 0.85,
+          'line-width': ['match', ['get', 'level'], 'high', zoomWidth(6), 'medium', zoomWidth(4.5), zoomWidth(3)] as maplibregl.ExpressionSpecification,
         },
       });
       map.addSource('route-baseline', { type: 'geojson', data: EMPTY });
@@ -74,14 +92,23 @@ export function MapView({ segments, reports, route, picks, onBboxChange, onMapCl
         id: 'route-baseline',
         type: 'line',
         source: 'route-baseline',
-        paint: { 'line-color': '#6b7280', 'line-width': 4, 'line-dasharray': [2, 2] },
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#8a8f98', 'line-width': 5, 'line-dasharray': [1, 2] },
       });
       map.addSource('route-safer', { type: 'geojson', data: EMPTY });
+      map.addLayer({
+        id: 'route-safer-casing',
+        type: 'line',
+        source: 'route-safer',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': casingColor(), 'line-width': 13 },
+      });
       map.addLayer({
         id: 'route-safer',
         type: 'line',
         source: 'route-safer',
-        paint: { 'line-color': '#1d4ed8', 'line-width': 5 },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#2563ff', 'line-width': 8 },
       });
       map.addSource('reports', { type: 'geojson', data: EMPTY });
       map.addLayer({
@@ -90,9 +117,9 @@ export function MapView({ segments, reports, route, picks, onBboxChange, onMapCl
         source: 'reports',
         paint: {
           'circle-radius': 7,
-          'circle-color': '#0ea5e9',
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
+          'circle-color': '#00b3ff',
+          'circle-stroke-color': casingColor(),
+          'circle-stroke-width': 3,
         },
       });
       map.addSource('picks', { type: 'geojson', data: EMPTY });
@@ -108,6 +135,7 @@ export function MapView({ segments, reports, route, picks, onBboxChange, onMapCl
         },
       });
       loaded.current = true;
+      applyTheme();
       sync();
       emitBbox();
     });
@@ -120,7 +148,7 @@ export function MapView({ segments, reports, route, picks, onBboxChange, onMapCl
       new maplibregl.Popup()
         .setLngLat(e.lngLat)
         .setText(
-          `${p.name ?? p.segmentId} · riesgo estimado ${p.level} (${Number(p.score).toFixed(2)}) · lluvia 1h ${p.rainfall1hMm} mm · reportes 60 min: ${p.reportCount60m}`,
+          `${p.name ?? p.segmentId} · riesgo estimado ${(LEVEL_LABELS[p.level as keyof typeof LEVEL_LABELS] ?? p.level).toLowerCase()} (${Number(p.score).toFixed(2)}) · lluvia 1h ${p.rainfall1hMm} mm · reportes 60 min: ${p.reportCount60m}`,
         )
         .addTo(map);
     });
@@ -160,7 +188,24 @@ export function MapView({ segments, reports, route, picks, onBboxChange, onMapCl
     });
   }
 
+  function casingColor() {
+    return themeRef.current === 'dark' ? '#0b0d12' : '#ffffff';
+  }
+
+  function applyTheme() {
+    const map = mapRef.current;
+    if (!map || !loaded.current) return;
+    const dark = themeRef.current === 'dark';
+    if (map.getLayer('base-light')) {
+      map.setLayoutProperty('base-light', 'visibility', dark ? 'none' : 'visible');
+      map.setLayoutProperty('base-dark', 'visibility', dark ? 'visible' : 'none');
+    }
+    for (const id of ['segments-casing', 'route-safer-casing']) map.setPaintProperty(id, 'line-color', casingColor());
+    map.setPaintProperty('reports', 'circle-stroke-color', casingColor());
+  }
+
   useEffect(sync, [segments, reports, route, picks]);
+  useEffect(applyTheme, [theme]);
 
   return <div ref={container} className="map" data-testid="map" />;
 }
