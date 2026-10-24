@@ -5,7 +5,7 @@
 set -euo pipefail
 
 PROFILE="${AWS_PROFILE:-aguaruta}"
-REGION="${AWS_REGION:-us-east-1}"
+REGION="${AWS_REGION:-us-east-2}"  # la SCP del hackathon solo permite us-east-2
 AWS="aws --profile $PROFILE --region $REGION"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -23,7 +23,11 @@ echo "Cuenta $ACCOUNT · región $REGION"
 # ---------- S3 ----------
 for B in "$SNAP_BUCKET" "$PHOTO_BUCKET"; do
   if ! $AWS s3api head-bucket --bucket "$B" 2>/dev/null; then
-    $AWS s3api create-bucket --bucket "$B" >/dev/null
+    if [ "$REGION" = "us-east-1" ]; then
+      $AWS s3api create-bucket --bucket "$B" >/dev/null
+    else
+      $AWS s3api create-bucket --bucket "$B" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
+    fi
     echo "bucket $B creado"
   fi
   $AWS s3api put-public-access-block --bucket "$B" \
@@ -94,7 +98,7 @@ if [ "$API_ID" = "None" ] || [ -z "$API_ID" ]; then
 fi
 API_URL="https://$API_ID.execute-api.$REGION.amazonaws.com/v1"
 echo "API: $API_URL"
-curl -fsS "$API_URL/risk/segments?bbox=-89.64,20.95,-89.60,20.99&asOf=2026-05-29T20:00:00Z" | head -c 200; echo
+curl -fsS -o /dev/null -w "risk/segments → HTTP %{http_code}\n" "$API_URL/risk/segments?bbox=-89.64,20.95,-89.60,20.99&asOf=2026-05-29T20:00:00Z"
 
 # ---------- Amplify Hosting (deploy manual de dist/) ----------
 ( cd web && VITE_API_BASE_URL="$API_URL" npm run build )
@@ -104,8 +108,13 @@ if [ "$APP_ID" = "None" ] || [ -z "$APP_ID" ]; then
   APP_ID=$($AWS amplify create-app --name "$APP_NAME" --query app.appId --output text)
   $AWS amplify create-branch --app-id "$APP_ID" --branch-name main >/dev/null
 fi
+APP_ID=$(echo "$APP_ID" | tr -d '\r')
+for J in $($AWS amplify list-jobs --app-id "$APP_ID" --branch-name main \
+  --query "jobSummaries[?status=='PENDING'].jobId" --output text | tr -d '\r'); do
+  $AWS amplify stop-job --app-id "$APP_ID" --branch-name main --job-id "$J" >/dev/null
+done
 read -r JOB_ID UPLOAD_URL < <($AWS amplify create-deployment --app-id "$APP_ID" --branch-name main \
-  --query "[jobId,zipUploadUrl]" --output text)
+  --query "[jobId,zipUploadUrl]" --output text | tr -d '\r')
 curl -fsS -X PUT -H "Content-Type: application/zip" --upload-file web/web.zip "$UPLOAD_URL"
 $AWS amplify start-deployment --app-id "$APP_ID" --branch-name main --job-id "$JOB_ID" >/dev/null
 echo "Web: https://main.$APP_ID.amplifyapp.com"

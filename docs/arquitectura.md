@@ -6,7 +6,7 @@ flowchart LR
     WEB["SPA React + MapLibre<br/>(AWS Amplify Hosting)"]
   end
 
-  subgraph AWS["AWS · us-east-1"]
+  subgraph AWS["AWS · us-east-2"]
     APIGW["Amazon API Gateway<br/>HTTP API /v1"]
     LAMBDA["AWS Lambda<br/>api (router)"]
     S3S[("Amazon S3<br/>segments.json + snapshots/")]
