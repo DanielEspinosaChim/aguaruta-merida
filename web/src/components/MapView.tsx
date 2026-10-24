@@ -41,15 +41,18 @@ const PALETTE: Record<Theme, Record<string, string>> = {
   },
 };
 
+/** Grosor por nivel que crece con el zoom pero se topa al ancho real de una calle (no "tubos"). */
 const width = (low: number, high: number) =>
   [
     'interpolate',
-    ['exponential', 1.6],
+    ['linear'],
     ['zoom'],
     12,
-    ['match', ['get', 'level'], 'high', high * 0.45, 'medium', low * 0.45, low * 0.3],
-    17,
-    ['match', ['get', 'level'], 'high', high * 2.4, 'medium', low * 2.4, low * 1.6],
+    ['match', ['get', 'level'], 'high', high * 0.4, 'medium', low * 0.4, low * 0.3],
+    15,
+    ['match', ['get', 'level'], 'high', high, 'medium', low, low * 0.8],
+    18,
+    ['match', ['get', 'level'], 'high', high * 1.25, 'medium', low * 1.25, low],
   ] as maplibregl.ExpressionSpecification;
 
 const color = [
@@ -133,7 +136,7 @@ export function MapView({
               'fill-extrusion-color': PALETTE.light.extrusion,
               'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
               'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-              'fill-extrusion-opacity': 0.85,
+              'fill-extrusion-opacity': 0.6,
             },
           },
           firstLabel,
@@ -147,14 +150,14 @@ export function MapView({
         source: 'segments',
         filter: ['==', ['get', 'level'], 'high'],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': LEVEL_COLORS.high, 'line-width': width(10, 26), 'line-blur': 14, 'line-opacity': 0.5 },
+        paint: { 'line-color': LEVEL_COLORS.high, 'line-width': width(9, 18), 'line-blur': 7, 'line-opacity': 0.5 },
       });
       map.addLayer({
         id: 'segments-casing',
         type: 'line',
         source: 'segments',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': PALETTE.light.casing, 'line-width': width(5.5, 9.5) },
+        paint: { 'line-color': PALETTE.light.casing, 'line-width': width(6.5, 10) },
       });
       map.addLayer({
         id: 'segments',
@@ -163,7 +166,7 @@ export function MapView({
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': color,
-          'line-width': width(3, 6.5),
+          'line-width': width(4, 7),
         },
       });
 
@@ -345,6 +348,11 @@ export function MapView({
     };
     for (const l of baseLayers.current) {
       const id = l.id;
+      // Andadores, pasillos y vías de servicio no son parte de la red de autos: fuera, para no confundir.
+      if (/path|pier|aeroway|railway/.test(id)) {
+        map.setLayoutProperty(id, 'visibility', 'none');
+        continue;
+      }
       if (l.type === 'background') set(id, 'background-color', c.background);
       else if (l.type === 'fill') {
         if (id.startsWith('water')) set(id, 'fill-color', c.water);
@@ -355,6 +363,7 @@ export function MapView({
         if (id.startsWith('water')) set(id, 'line-color', c.water);
         else if (id.includes('casing')) set(id, 'line-color', c.roadCasing);
         else if (id.startsWith('boundary')) set(id, 'line-color', c.label);
+        else if (id.includes('minor')) set(id, 'line-color', c.roadCasing);
         else set(id, 'line-color', c.road);
       } else if (l.type === 'symbol') {
         set(id, 'text-color', c.label);
