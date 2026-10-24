@@ -71,7 +71,7 @@ ROLE_ARN=$($AWS iam get-role --role-name "$ROLE" --query Role.Arn --output text)
 
 # ---------- Lambda ----------
 ( cd api && npm run bundle )
-( cd api/dist && rm -f ../lambda.zip && powershell.exe -NoProfile -Command "Compress-Archive -Path * -DestinationPath ../lambda.zip -Force" )
+python -c "import zipfile;z=zipfile.ZipFile('api/lambda.zip','w',zipfile.ZIP_DEFLATED);z.write('api/dist/index.mjs','index.mjs');z.close()"
 ENV_VARS="Variables={SNAPSHOT_BUCKET=$SNAP_BUCKET,PHOTOS_BUCKET=$PHOTO_BUCKET,REPORTS_TABLE=$TABLE}"
 if $AWS lambda get-function --function-name "$FN" >/dev/null 2>&1; then
   $AWS lambda update-function-code --function-name "$FN" --zip-file fileb://api/lambda.zip >/dev/null
@@ -102,7 +102,8 @@ curl -fsS -o /dev/null -w "risk/segments → HTTP %{http_code}\n" "$API_URL/risk
 
 # ---------- Amplify Hosting (deploy manual de dist/) ----------
 ( cd web && VITE_API_BASE_URL="$API_URL" npm run build )
-( cd web/dist && rm -f ../web.zip && powershell.exe -NoProfile -Command "Compress-Archive -Path * -DestinationPath ../web.zip -Force" )
+# zip con '/' (Compress-Archive de PowerShell 5.1 usa '\' y Amplify devuelve 404 en assets/)
+python -c "import os,zipfile;z=zipfile.ZipFile('web/web.zip','w',zipfile.ZIP_DEFLATED);[z.write(os.path.join(r,f),os.path.relpath(os.path.join(r,f),'web/dist').replace(os.sep,'/')) for r,_,fs in os.walk('web/dist') for f in fs];z.close()"
 APP_ID=$($AWS amplify list-apps --query "apps[?name=='$APP_NAME'].appId | [0]" --output text)
 if [ "$APP_ID" = "None" ] || [ -z "$APP_ID" ]; then
   APP_ID=$($AWS amplify create-app --name "$APP_NAME" --query app.appId --output text)
