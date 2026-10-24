@@ -6,7 +6,7 @@ import { LEVEL_COLORS, LEVEL_LABELS } from '../lib/replay';
 import type { Theme } from '../lib/theme';
 import { formatBbox } from '../lib/validation';
 
-const MERIDA: Position = [-89.6215, 20.9705];
+const MERIDA: Position = [-89.648, 20.982];
 const BASE_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 const REDUCED = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -105,7 +105,7 @@ export function MapView({
       container: container.current,
       style: styleUrl,
       center: [-89.64, 20.99],
-      zoom: 10.6,
+      zoom: 9.6,
       pitch: 0,
       bearing: 0,
       attributionControl: { compact: true },
@@ -325,9 +325,9 @@ export function MapView({
     const narrow = window.innerWidth < 820;
     map.flyTo({
       center: MERIDA,
-      zoom: 14.6,
-      pitch: 58,
-      bearing: -24,
+      zoom: narrow ? 11.6 : 12.4,
+      pitch: 48,
+      bearing: -14,
       duration: REDUCED ? 0 : 4200,
       essential: true,
       curve: 1.6,

@@ -12,11 +12,30 @@ import { fileURLToPath } from 'node:url';
 import { haversineM, type Position, type StreetSegment } from '../core/src/index';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
-const BBOX = { s: 20.95, w: -89.645, n: 20.99, e: -89.6 };
-const HIGHWAYS = 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|trunk|trunk_link|residential|unclassified|living_street';
+/** Toda la ciudad (dentro del Periférico y un poco más): solo avenidas y calles principales. */
+const CITY = { s: 20.89, w: -89.73, n: 21.07, e: -89.54 };
+const ARTERIALS = 'motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link';
+const LOCAL = 'residential|unclassified|living_street';
+/** Zonas críticas del spec (§1.5): todas las calles. Centros aproximados (Nominatim). */
+const ZONES = [
+  { name: 'Centro', s: 20.95, w: -89.645, n: 20.99, e: -89.6 },
+  { name: 'Ciudad Caucel', ...box(-89.6988, 20.9969, 1600) },
+  { name: 'Juan Pablo II', ...box(-89.6789, 20.9698, 900) },
+  { name: 'Miguel Hidalgo', ...box(-89.6423, 20.9891, 800) },
+];
 
-const query = `[out:json][timeout:90];
-way["highway"~"^(${HIGHWAYS})$"](${BBOX.s},${BBOX.w},${BBOX.n},${BBOX.e});
+function box(lon: number, lat: number, radiusM: number) {
+  const dLat = radiusM / 111320;
+  const dLon = radiusM / (111320 * Math.cos((lat * Math.PI) / 180));
+  return { s: lat - dLat, w: lon - dLon, n: lat + dLat, e: lon + dLon };
+}
+
+const bb = (b: { s: number; w: number; n: number; e: number }) => `(${b.s},${b.w},${b.n},${b.e})`;
+const query = `[out:json][timeout:180];
+(
+  way["highway"~"^(${ARTERIALS})$"]${bb(CITY)};
+${ZONES.map((z) => `  way["highway"~"^(${ARTERIALS}|${LOCAL})$"]${bb(z)};`).join(String.fromCharCode(10))}
+);
 out body;
 >;
 out skel qt;`;
@@ -48,6 +67,12 @@ const DEPRESSIONS = [
   { center: [-89.6237, 20.9668] as Position, radiusM: 260, depthM: 2.6 },
   { center: [-89.6135, 20.9585] as Position, radiusM: 220, depthM: 2.2 },
   { center: [-89.6325, 20.9735] as Position, radiusM: 200, depthM: 1.9 },
+  { center: [-89.7010, 20.9990] as Position, radiusM: 380, depthM: 2.4 },
+  { center: [-89.6930, 20.9905] as Position, radiusM: 300, depthM: 2.0 },
+  { center: [-89.6790, 20.9690] as Position, radiusM: 280, depthM: 2.2 },
+  { center: [-89.6420, 20.9890] as Position, radiusM: 240, depthM: 2.0 },
+  { center: [-89.5900, 21.0200] as Position, radiusM: 350, depthM: 1.8 },
+  { center: [-89.6600, 20.9300] as Position, radiusM: 350, depthM: 1.8 },
 ];
 
 function round(x: number, d = 6) {

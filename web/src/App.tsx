@@ -12,6 +12,7 @@ import {
 import { Disclaimer } from './components/Disclaimer';
 import { Intro } from './components/Intro';
 import { MapView } from './components/MapView';
+import { ModelPanel } from './components/ModelPanel';
 import { RainOverlay } from './components/RainOverlay';
 import { ReplayControl } from './components/ReplayControl';
 import { ReportPanel } from './components/ReportPanel';
@@ -26,6 +27,20 @@ const errorMessage = (e: unknown) =>
   e instanceof ApiError ? e.body.error.message : 'Ocurrió un error inesperado. Intenta de nuevo.';
 
 const BULLET: Record<RiskLevel, string> = { high: 'A', medium: 'M', low: 'B' };
+
+/** Longitud de una línea en km (haversine). */
+function lineKm(coords: Position[]): number {
+  let m = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const [lon1, lat1] = coords[i - 1]!;
+    const [lon2, lat2] = coords[i]!;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+    m += 2 * 6371000 * Math.asin(Math.sqrt(a));
+  }
+  return m / 1000;
+}
 
 /** Número que cuenta hasta su valor nuevo (tabular, sin saltos). */
 function CountUp({ value }: { value: number }) {
@@ -60,7 +75,7 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
   const [disclaimer, setDisclaimer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const [tab, setTab] = useState<'route' | 'report'>('route');
+  const [tab, setTab] = useState<'route' | 'report' | 'model'>('route');
   const [theme, toggleTheme] = useTheme();
   const [introDone, setIntroDone] = useState(
     import.meta.env.MODE === 'test' || (typeof location !== 'undefined' && location.search.includes('nointro')),
@@ -110,7 +125,13 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
   const onIntroDone = useCallback(() => setIntroDone(true), []);
 
   const counts: Record<RiskLevel, number> = { high: 0, medium: 0, low: 0 };
-  for (const f of segments?.features ?? []) counts[f.properties.level]++;
+  const km: Record<RiskLevel, number> = { high: 0, medium: 0, low: 0 };
+  for (const f of segments?.features ?? []) {
+    counts[f.properties.level]++;
+    km[f.properties.level] += lineKm(f.geometry.coordinates);
+  }
+  const totalKm = km.high + km.medium + km.low;
+  const pctRisk = totalKm ? Math.round(((km.high + km.medium) / totalKm) * 100) : 0;
   const rainMm = segments?.features[0]?.properties.rainfall1hMm ?? 0;
 
   return (
@@ -155,9 +176,21 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
               <strong>
                 <CountUp value={counts[l]} />
               </strong>
-              <span className="line-label">Riesgo estimado {LEVEL_LABELS[l].toLowerCase()}</span>
+              <span className="line-label">
+                Riesgo estimado {LEVEL_LABELS[l].toLowerCase()}
+                <b>{km[l].toFixed(1)} km</b>
+              </span>
             </div>
           ))}
+        </section>
+
+        <section className="impact" aria-label="Impacto">
+          <strong>
+            <CountUp value={pctRisk} />%
+          </strong>
+          <span>
+            de las calles visibles con riesgo medio o alto · {(km.high + km.medium).toFixed(0)} de {totalKm.toFixed(0)} km
+          </span>
         </section>
 
         <div className={`tabs tab-${tab}`} role="tablist">
@@ -166,6 +199,9 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
           </button>
           <button type="button" role="tab" aria-selected={tab === 'report'} onClick={() => setTab('report')}>
             <em>03</em> Reportar
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'model'} onClick={() => setTab('model')}>
+            <em>04</em> ¿Cómo decide?
           </button>
           <span className="tab-ink" aria-hidden="true" />
         </div>
@@ -188,6 +224,9 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
               onResult={setRoute}
               result={route}
             />
+          </div>
+          <div className="pane" hidden={tab !== 'model'}>
+            <ModelPanel />
           </div>
           <div className="pane" hidden={tab !== 'report'}>
             <ReportPanel

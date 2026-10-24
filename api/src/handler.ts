@@ -1,4 +1,5 @@
 import { dirname, join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app';
 import { LocalGraphRoutingProvider } from './routing';
@@ -8,6 +9,7 @@ import { LocalPhotoSigner, LocalSnapshotStore, MemoryReportStore } from './store
 /** Subconjunto del evento de API Gateway HTTP API (payload v2) que usamos. */
 export interface HttpApiEventV2 {
   rawPath: string;
+  headers?: Record<string, string | undefined>;
   queryStringParameters?: Record<string, string | undefined>;
   body?: string;
   isBase64Encoded?: boolean;
@@ -29,11 +31,22 @@ const app = createApp({
 
 export async function handler(event: HttpApiEventV2) {
   const body = event.body && event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body;
-  return app({
+  const res = await app({
     method: event.requestContext.http.method,
     path: event.rawPath,
     query: event.queryStringParameters ?? {},
     body,
     requestId: event.requestContext.requestId ? `req_${event.requestContext.requestId}` : undefined,
   });
+  // Respuestas grandes (toda la ciudad) en gzip: ~7x menos y lejos del límite de 6 MB de Lambda.
+  const acceptsGzip = /gzip/i.test(event.headers?.['accept-encoding'] ?? '');
+  if (acceptsGzip && typeof res.body === 'string' && res.body.length > 50_000) {
+    return {
+      ...res,
+      headers: { ...res.headers, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' },
+      body: gzipSync(res.body).toString('base64'),
+      isBase64Encoded: true,
+    };
+  }
+  return res;
 }

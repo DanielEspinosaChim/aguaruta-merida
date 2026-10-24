@@ -1,5 +1,5 @@
 {
-  "modelVersion": "v0-heuristic",
+  "modelVersion": "v0.1-heuristic",
   "weights": {
     "rain1h": 0.35,
     "rain3h": 0.2,
@@ -8,9 +8,9 @@
     "history": 0.1
   },
   "refs": {
-    "rain1hRef": 40,
-    "rain3hRef": 75,
-    "lowPointRefM": 2,
+    "rain1hRef": 80,
+    "rain3hRef": 150,
+    "lowPointRefM": 1.5,
     "historyRef": 5
   }
 }
