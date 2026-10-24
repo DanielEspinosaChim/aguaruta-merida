@@ -45,7 +45,7 @@ Todo el código de la aplicación (`web/`, `api/`, `core/`, `scripts/`) se escri
 - **Pruebas y mock:** Vitest, Testing Library, jsdom, Prism (`@stoplight/prism-cli`), Ajv, js-yaml.
 - **Mapa base en local:** teselas de © OpenStreetMap contributors.
 - **Arnés de desarrollo** (`.claude/`, pre-commit, CI): plantillas de la skill `sdd-bootstrap`, con hooks de cc-safe-setup (MIT), agentes y skills de everything-claude-code (MIT), wshobson/agents (MIT), obra/superpowers (MIT) y anthropics/skills (Apache-2.0). Las licencias están en `.claude/`.
-- **Datos:** los tramos de calle y la serie de lluvia de la demo son **sintéticos** (generados con `scripts/generate-data.ts`) y reproducen un evento plausible. No son mediciones reales.
+- **Datos:** las **calles son reales**: 3,834 tramos del Centro de Mérida importados de © OpenStreetMap (ODbL) con `scripts/import-osm.ts`. La **elevación relativa, las depresiones, el historial de inundaciones y la serie de lluvia** del 29-may-2026 son **sintéticos** de demo (`scripts/generate-data.ts`); se reemplazan por INEGI, Protección Civil y CONAGUA sin cambiar código.
 
 ## Cómo se ejecuta
 
