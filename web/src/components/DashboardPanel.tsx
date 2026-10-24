@@ -1,4 +1,4 @@
-import type { RainfallSeries, SegmentRiskCollection } from '../api/types';
+import type { FloodReport, RainfallSeries, SegmentRiskCollection } from '../api/types';
 
 export type TimelineMode = 'event' | 'live' | 'date';
 
@@ -13,6 +13,19 @@ export interface DashboardPanelProps {
   storm: number;
   onStorm: (mm: number) => void;
   kmByDepth: { any: number; medium: number; high: number };
+  reports?: FloodReport[];
+}
+
+const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+function download(name: string, rows: unknown[][]) {
+  const blob = new Blob(['﻿' + rows.map((r) => r.map(csvCell).join(',')).join('
+')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 const STORMS = [0, 20, 40, 60, 90];
@@ -96,6 +109,31 @@ export function DashboardPanel(p: DashboardPanelProps) {
           />
         ))}
         {series.length === 0 && <span className="muted">Sin datos de lluvia para este rango.</span>}
+      </div>
+
+      <div className="row downloads">
+        <button
+          type="button"
+          onClick={() =>
+            download(`aguaruta-reportes-${p.asOf.slice(0, 10)}.csv`, [
+              ['reportId', 'fecha', 'nivel_agua', 'lon', 'lat', 'tramo', 'notas', 'foto'],
+              ...(p.reports ?? []).map((r) => [r.reportId, r.createdAt, r.waterLevel, r.location.coordinates[0], r.location.coordinates[1], r.segmentId, r.notes, r.photoUrl]),
+            ])
+          }
+        >
+          ↓ Reportes CSV
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            download(`aguaruta-calles-${p.asOf.slice(0, 16).replace(':', '')}.csv`, [
+              ['segmentId', 'calle', 'nivel', 'agua_cm', 'lluvia_1h_mm', 'lluvia_3h_mm', 'reportes_60min', 'asOf'],
+              ...wet.map((f) => [f.properties.segmentId, f.properties.name, f.properties.level, f.properties.waterDepthCm, f.properties.rainfall1hMm, f.properties.rainfall3hMm, f.properties.reportCount60m, p.asOf]),
+            ])
+          }
+        >
+          ↓ Calles con agua CSV
+        </button>
       </div>
 
       <h2>Calles más afectadas</h2>

@@ -18,6 +18,7 @@ import { ModelPanel } from './components/ModelPanel';
 import { RainOverlay } from './components/RainOverlay';
 import { ReplayControl } from './components/ReplayControl';
 import { ReportPanel } from './components/ReportPanel';
+import { RouteInputs } from './components/RouteInputs';
 import { RoutePanel } from './components/RoutePanel';
 import { LEVEL_LABELS, REPLAY_START, REPLAY_STEP_MS, REPLAY_STEPS } from './lib/replay';
 import { useTheme } from './lib/theme';
@@ -251,6 +252,10 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
             </p>
           )}
           <div className="pane" hidden={tab !== 'route'}>
+            <RouteInputs
+              onOrigin={(p) => setPicks((prev) => ({ ...prev, origin: p }))}
+              onDestination={(p) => setPicks((prev) => ({ ...prev, destination: p }))}
+            />
             <RoutePanel
               api={api}
               origin={picks.origin}
@@ -275,6 +280,7 @@ export default function App({ api = defaultApi }: { api?: AguaRutaApi }) {
               storm={storm}
               onStorm={setStorm}
               kmByDepth={kmByDepth}
+              reports={reports}
             />
           </div>
           <div className="pane" hidden={tab !== 'model'}>

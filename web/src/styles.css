@@ -482,3 +482,10 @@ label { font: 500 0.72rem var(--mono); letter-spacing: 0.06em; text-transform: u
 .top-streets b.lvl-medium { background: var(--yellow); color: #0a0a0a; }
 .top-streets b.lvl-low { background: var(--green); }
 .steps .w { font-size: 0.95rem; }
+
+.route-inputs { margin-top: 12px; }
+.route-inputs form { flex-wrap: nowrap; }
+.addr { flex: 1; min-width: 0; font: 500 0.78rem var(--mono); color: var(--ink); background: transparent; border: 1.5px solid var(--ink); padding: 10px; border-radius: 0; }
+.route-inputs .go { width: auto !important; padding: 10px 14px !important; font: 600 0.7rem var(--mono) !important; }
+.route-inputs .go::after { content: none !important; }
+.downloads { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
