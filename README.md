@@ -23,9 +23,10 @@ En Mérida, el suelo kárstico, la falta de drenaje pluvial y los puntos bajos h
 | **AWS Lambda** | Función `api` que enruta `/v1`: riesgo, reportes, rutas |
 | **Amazon API Gateway** (HTTP API) | Entrada HTTPS pública `/v1` con CORS |
 | **Amazon DynamoDB** | Tabla `Reports` con TTL de 24 h |
-| **Amazon Location Service** | Mapa base y cálculo de rutas con áreas a evitar |
 | **AWS Amplify Hosting** | Hosting de la SPA |
 | **AWS IAM** | Rol de mínimo privilegio para la Lambda |
+
+En la demo, la ruta que evita riesgo la calcula `LocalGraphRoutingProvider` (Dijkstra sobre los tramos, dentro de la Lambda). **Amazon Location Service** (`CalculateRoutes` con `Avoid.Areas`) ya está detrás de la interfaz `RoutingProvider` como siguiente paso, pero todavía no está conectado.
 
 Diagrama: [docs/arquitectura.md](docs/arquitectura.md).
 
@@ -45,11 +46,9 @@ Todo el código de la aplicación (`web/`, `api/`, `core/`, `scripts/`) se escri
 Requisitos: Node.js 20+ y npm.
 
 ```bash
-# 1. Datos y snapshots del replay
+# 1. Dependencias (los datos y snapshots ya vienen en data/; para regenerarlos: cd api && npm run data)
 cd core && npm install && cd ..
 cd api && npm install && cd ..
-npx tsx scripts/generate-data.ts
-npx tsx scripts/build-replay.ts
 
 # 2. API local (misma lógica que la Lambda), en http://127.0.0.1:4020/v1
 cd api && npm run dev
