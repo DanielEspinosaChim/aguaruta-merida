@@ -489,3 +489,22 @@ label { font: 500 0.72rem var(--mono); letter-spacing: 0.06em; text-transform: u
 .route-inputs .go { width: auto !important; padding: 10px 14px !important; font: 600 0.7rem var(--mono) !important; }
 .route-inputs .go::after { content: none !important; }
 .downloads { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.place { display: grid; grid-template-columns: 34px 1fr; gap: 10px; position: relative; }
+.place-marker { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #fff; margin-top: 18px; }
+.m-A { background: var(--green); }
+.m-B { background: var(--blue); }
+.place-body { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.place-label { font: 600 0.62rem var(--mono); letter-spacing: 0.12em; }
+.place-row { display: flex; gap: 6px; }
+.place-row input { flex: 1; min-width: 0; font: 500 0.8rem var(--mono); color: var(--ink); background: transparent; border: 1.5px solid var(--ink); padding: 10px; border-radius: 0; }
+.place-row input::placeholder { color: var(--mute); }
+.place-value { font: 600 0.72rem var(--mono); color: var(--green); }
+.route-inputs .locate { width: 42px !important; padding: 0 !important; font-size: 1.1rem !important; flex: none; }
+.route-inputs .locate::after { content: none !important; }
+.suggest { position: absolute; z-index: 10; top: 100%; left: 0; right: 0; margin: 2px 0 0; padding: 0; list-style: none; background: var(--paper); border: 1.5px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); animation: rise 0.25s var(--ease-out); }
+.suggest button { width: 100% !important; text-align: left !important; border: none !important; border-bottom: 1px solid var(--rule) !important; padding: 9px 10px !important; display: flex; flex-direction: column; gap: 2px; background: transparent !important; color: var(--ink) !important; font: inherit !important; text-transform: none !important; letter-spacing: 0 !important; }
+.suggest button::before, .suggest button::after { content: none !important; }
+.suggest button:hover { background: var(--paper-2) !important; }
+.suggest strong { font-size: 0.85rem; }
+.suggest span { font: 400 0.68rem var(--mono); color: var(--mute); }
