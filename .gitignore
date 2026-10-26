@@ -13,3 +13,6 @@ data/photos/
 *.log
 *.zip
 data/snapshots/
+
+# Scripts de prueba rápida locales
+scripts/_*.ts

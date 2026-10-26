@@ -26,4 +26,3 @@ Dueño y compromiso están **por asignar** por el líder del proyecto: no se inv
 |---|---|---|---|---|---|
 | T-003 | Datos de demo sintéticos (`data/`) | Sin datos reales de OSM, INEGI y CONAGUA al arranque (según `docs/demo.md`) | P2 | POR ASIGNAR | POR ASIGNAR |
 | T-004 | Recursos AWS pendientes: S3/DynamoDB (006) y Amazon Location (005) | Lógica local hecha, despliegue pendiente según `roadmap.md` | P1 | POR ASIGNAR | POR ASIGNAR |
-| T-005 | `scripts/_live.ts` sin seguimiento en git | Archivo de trabajo | P3 | POR ASIGNAR | POR ASIGNAR |
