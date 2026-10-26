@@ -16,27 +16,43 @@ concurrency:
 
 jobs:
   calidad:
-    name: Lint, tipos y tests
+    name: Lint, tipos y tests (${{ matrix.paquete }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        paquete: [core, api, web]
+    defaults:
+      run:
+        working-directory: ${{ matrix.paquete }}
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.paquete }}/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
       - name: Lint
-        run: npm run lint --if-present
+        run: pnpm run --if-present lint
       - name: Tipos
-        run: npm run typecheck --if-present
+        run: pnpm run --if-present typecheck
       - name: Tests
-        run: npm test --if-present
-      - name: Cada criterio de aceptación tiene su test (trazabilidad spec → test)
-        run: |
+        run: pnpm run --if-present test
+      - name: Dependencias con vulnerabilidades conocidas
+        run: pnpm audit --audit-level=high --prod
+
+  trazabilidad:
+    name: Cada criterio de aceptación tiene su test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: |
           python3 scripts/trazabilidad.py --check --escribir
           git diff --exit-code docs/trazabilidad.md || { echo "docs/trazabilidad.md está desactualizado: corre python3 scripts/trazabilidad.py --escribir y commitea"; exit 1; }
-      - name: Dependencias con vulnerabilidades conocidas
-        run: npm audit --audit-level=high --omit=dev
 
   secretos:
     name: Secretos (Gitleaks)

@@ -1,0 +1,6 @@
+# Aprobadores obligatorios. Se asigna a teams, nunca a personas.
+*                     @Techmaleon/desarrollo
+/.github/             @Techmaleon/qa-seguridad
+/**/auth/**           @Techmaleon/qa-seguridad
+/**/migrations/**     @Techmaleon/qa-seguridad
+*.sql                 @Techmaleon/qa-seguridad

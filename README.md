@@ -60,24 +60,24 @@ Todo el código de la aplicación (`web/`, `api/`, `core/`, `scripts/`) se escri
 
 ## Cómo se ejecuta
 
-Requisitos: Node.js 20+ y npm.
+Requisitos: Node.js 20+ y pnpm 11 (npm está prohibido en Techmaleon).
 
 ```bash
-# 1. Dependencias (los datos y snapshots ya vienen en data/; para regenerarlos: cd api && npm run data)
-cd core && npm install && cd ..
-cd api && npm install && cd ..
+# 1. Dependencias (los datos y snapshots ya vienen en data/; para regenerarlos: cd api && pnpm run data)
+cd core && pnpm install && cd ..
+cd api && pnpm install && cd ..
 
 # 2. API local (misma lógica que la Lambda), en http://127.0.0.1:4020/v1
-cd api && npm run dev
+cd api && pnpm run dev
 
 # 3. Cliente web (otra terminal)
-cd web && npm install
-VITE_API_BASE_URL=http://127.0.0.1:4020/v1 npm run dev     # PowerShell: $env:VITE_API_BASE_URL="http://127.0.0.1:4020/v1"; npm run dev
+cd web && pnpm install
+VITE_API_BASE_URL=http://127.0.0.1:4020/v1 pnpm run dev     # PowerShell: $env:VITE_API_BASE_URL="http://127.0.0.1:4020/v1"; pnpm run dev
 ```
 
-Solo contra el mock del contrato (sin datos reales): `cd web && npm run mock` y `npm run dev` (por defecto usa `http://127.0.0.1:4010/v1`).
+Solo contra el mock del contrato (sin datos reales): `cd web && pnpm run mock` y `pnpm run dev` (por defecto usa `http://127.0.0.1:4010/v1`).
 
-Pruebas: `npm test` y `npm run typecheck` dentro de `core/`, `api/` y `web/`.
+Pruebas: `pnpm test` y `pnpm run typecheck` dentro de `core/`, `api/` y `web/`.
 
 Despliegue en AWS (idempotente, crea S3, DynamoDB, IAM, Lambda, API Gateway y Amplify): `bash scripts/deploy-aws.sh` con el perfil `aguaruta` de AWS CLI v2.
 

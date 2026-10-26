@@ -1,8 +1,8 @@
 # Guion de demo (5 min + 2 de preguntas)
 
 ## Antes de presentar
-- Terminal 1: `cd api && npm run dev` (API local en 4020). Si ya está en AWS, usar la URL de Amplify.
-- Terminal 2: `cd web` y `$env:VITE_API_BASE_URL="http://127.0.0.1:4020/v1"; npm run dev`
+- Terminal 1: `cd api && pnpm run dev` (API local en 4020). Si ya está en AWS, usar la URL de Amplify.
+- Terminal 2: `cd web` y `$env:VITE_API_BASE_URL="http://127.0.0.1:4020/v1"; pnpm run dev`
 - Navegador en el Centro de Mérida, con el slider en 15:00Z.
 
 ## Guion
@@ -15,7 +15,7 @@
 
 ## Plan B
 - Si falla AWS o la red: API local (terminal 1).
-- Si falla la API local: `cd web && npm run mock` (datos de ejemplo del contrato).
+- Si falla la API local: `cd web && pnpm run mock` (datos de ejemplo del contrato).
 
 ## Preguntas probables
 - **¿Los datos son reales?** No. Son sintéticos y plausibles; el pipeline acepta los reales sin cambiar código.

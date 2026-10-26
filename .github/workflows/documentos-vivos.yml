@@ -1,0 +1,64 @@
+# Documentos vivos — verifica que existan y que no se conviertan en bitácora
+# infinita. TODO ADVIERTE salvo la ausencia de CLAUDE.md.
+# Origen: docs/ESTADO.md de agora-api llegó a 50 385 caracteres (~12 600 tokens
+# que cada sesión de agente paga antes de escribir una línea).
+name: Documentos vivos
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Existen los documentos vivos
+        run: |
+          faltan=0
+          for f in CLAUDE.md LEEME-PRIMERO.md ESTADO.md DECISIONES.md DEUDA.md README.md; do
+            if [ ! -f "$f" ]; then
+              echo "::warning::falta $f"
+              faltan=1
+            fi
+          done
+          # CLAUDE.md es el único que rompe: sin él, cada sesión de agente
+          # arranca a ciegas y eso se paga en tokens y en errores.
+          if [ ! -f CLAUDE.md ]; then
+            echo "::error::falta CLAUDE.md"
+            exit 1
+          fi
+          exit 0
+
+      - name: Límites de tamaño
+        continue-on-error: true
+        run: |
+          check () {
+            [ -f "$1" ] || return 0
+            n=$(wc -l < "$1")
+            if [ "$n" -gt "$2" ]; then
+              echo "::warning::$1 tiene $n líneas (límite $2). Archiva en docs/historico/."
+            fi
+          }
+          check CLAUDE.md 400
+          check LEEME-PRIMERO.md 120
+          check ESTADO.md 200
+          check DEUDA.md 100
+
+      - name: Un solo formato de contexto de agente
+        continue-on-error: true
+        run: |
+          if [ -f AGENTS.md ] && [ "$(wc -l < AGENTS.md)" -gt 3 ]; then
+            echo "::warning::AGENTS.md debe ser un enlace de una línea a CLAUDE.md (M-04 §7)."
+          fi
+
+      - name: Deuda sin dueño ni fecha
+        continue-on-error: true
+        run: |
+          if [ -f DEUDA.md ] && grep -qE '^\| T-[0-9]+' DEUDA.md; then
+            if grep -E '^\| T-[0-9]+' DEUDA.md | grep -qE '\|\s*\|'; then
+              echo "::warning::hay deuda sin dueño o sin fecha compromiso."
+            fi
+          fi

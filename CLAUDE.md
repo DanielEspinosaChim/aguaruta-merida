@@ -16,13 +16,13 @@ Fuente de verdad: `spec-lite.md`. El contrato `contract/openapi.yaml` manda; si 
 
 ## Comandos
 
-- `cd web && npm run mock`       — mock Prism del contrato en `http://127.0.0.1:4010/v1`
-- `cd api && npm run dev`        — API local en `http://127.0.0.1:4020/v1` (misma lógica que la Lambda)
-- `cd web && npm run dev`        — cliente; `VITE_API_BASE_URL` decide mock o API
-- `cd core && npm test` · `cd api && npm test` · `cd web && npm test` — tests (deben pasar antes de cada commit)
-- `npm run typecheck` en cada paquete — tipos (es el lint del proyecto)
-- `cd web && npm run build`      — build de producción
-- `npx tsx scripts/generate-data.ts` · `npx tsx scripts/build-replay.ts` — datos y snapshots del replay
+- `cd web && pnpm run mock`       — mock Prism del contrato en `http://127.0.0.1:4010/v1`
+- `cd api && pnpm run dev`        — API local en `http://127.0.0.1:4020/v1` (misma lógica que la Lambda)
+- `cd web && pnpm run dev`        — cliente; `VITE_API_BASE_URL` decide mock o API
+- `cd core && pnpm test` · `cd api && pnpm test` · `cd web && pnpm test` — tests (deben pasar antes de cada commit)
+- `pnpm run typecheck` en cada paquete — tipos (es el lint del proyecto)
+- `cd web && pnpm run build`      — build de producción
+- `pnpm dlx tsx scripts/generate-data.ts` · `npx tsx scripts/build-replay.ts` — datos y snapshots del replay
 
 Usa estos comandos tal cual; no los adivines.
 

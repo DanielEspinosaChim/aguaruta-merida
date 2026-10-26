@@ -1,0 +1,92 @@
+# Seguridad — esto es lo que evita que Mei audite a mano y que un agente
+# gaste tokens revisando seguridad.
+# ROMPE siempre: secretos. ROMPE en critical: CodeQL y audit de dependencias.
+# Todo lo demás advierte.
+name: Seguridad
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 13 * * 1'   # lunes 07:00 CDMX
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  secretos:
+    name: Secretos (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # el historial completo: un .env borrado ayer sigue ahí
+
+      # Se usa el binario de gitleaks, no gitleaks-action, porque la action
+      # exige GITLEAKS_LICENSE en repos de organización. La licencia es
+      # gratuita pero hay que tramitarla; el binario no la necesita y este
+      # paso no puede quedarse comentado "en lo que llega".
+      - name: Instalar gitleaks
+        run: |
+          VER=8.28.0
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # ROMPE, sin excepción. Hallazgos en la auditoría del 25-ago-2026:
+      # svc-core/firebase-adminsdk.json y .env en 4 repos más.
+      - name: Escanear código e historial
+        run: gitleaks detect --source . --redact --verbose --exit-code 1
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript-typescript']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+      - uses: github/codeql-action/autobuild@v3
+      # ROMPE en critical; el resto queda en la pestaña Security como aviso.
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+          upload: always
+
+  dependencias:
+    name: Audit de dependencias (${{ matrix.paquete }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        paquete: [core, api, web]
+    defaults:
+      run:
+        working-directory: ${{ matrix.paquete }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.paquete }}/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+
+      # ROMPE en critical. Es el umbral que ya usa svc-trivo y que el equipo
+      # no apagó: subirlo a "high" llena el CI de rojo y se desactiva solo.
+      - name: Vulnerabilidades críticas
+        run: pnpm audit --audit-level critical
+
+      - name: Vulnerabilidades altas (informativo)
+        continue-on-error: true
+        run: pnpm audit --audit-level high
